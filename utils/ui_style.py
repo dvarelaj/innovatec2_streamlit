@@ -55,17 +55,22 @@ def style_buttons():
     st.markdown(
         f"""
         <style>
+        div.stButton > button:first-child,
+        div[data-testid="baseButton-secondary"],
+        div[data-testid="baseButton-primary"],
         .stButton > button {{
-            background-color: {PRIMARY_BLUE};
-            color: {WHITE};
-            border-radius: 15px;
-            padding: 0.6em 1.4em;
-            border: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            box-shadow: 2px 2px 6px rgba(0,0,0,0.15);
+            background-color: {SECONDARY_BLUE} !important;
+            color: {WHITE} !important;
+            border-radius: 15px !important;
+            padding: 0.6em 1.4em !important;
+            border: none !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 2px 2px 6px rgba(0,0,0,0.15) !important;
         }}
-        .stButton > button:hover {{
+       div.stButton > button:hover,
+        div[data-testid="baseButton-secondary"]:hover,
+        div[data-testid="baseButton-primary"]:hover {{
             background-color: {SECONDARY_BLUE};
             transform: scale(1.03);
         }}
@@ -108,8 +113,7 @@ def style_inputs():
         <style>
         input, textarea, select {{
             border-radius: 8px !important;
-            border: 1px solid {MID_GRAY} !important;
-            padding: 0.5em !important;
+            padding: 1em !important;
             transition: 0.3s;
         }}
         input:focus, textarea:focus, select:focus {{
@@ -196,5 +200,5 @@ def general_style_orch():
     style_sidebar()
     style_inputs()
     style_headings()
-    style_cards()
+    # style_cards()
     style_scrollbar()
