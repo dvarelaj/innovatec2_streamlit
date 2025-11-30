@@ -120,16 +120,12 @@ def style_sidebar():
 def style_inputs():
     """Apply uniform style for input fields like text, select, and text areas."""
     st.markdown(
-        f"""
+        """
         <style>
         input, textarea, select {{
             border-radius: 8px !important;
             padding: 1em !important;
             transition: 0.3s;
-        }}
-        input:focus, textarea:focus, select:focus {{
-            border-color: {PRIMARY_BLUE} !important;
-            box-shadow: 0 0 0 2px rgba(0,86,214,0.2);
         }}
         </style>
         """,
