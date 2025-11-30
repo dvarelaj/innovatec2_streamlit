@@ -7,8 +7,9 @@ from utils.ui_style import (
     DARK_GRAY,
     MID_GRAY,
     YELLOW_ACCENT,
+    LIGHT_BLUE,
 )
-from utils.ui_blocks import menu, fixed_header
+from utils.ui_blocks import menu, fixed_header, options_navigation_horizontal
 
 general_style_orch()  # Inject custom styles
 menu()  # Setup sidebar menu
@@ -94,3 +95,75 @@ with st.container():
 # --- FOOTER NOTE ---
 st.markdown("---")
 st.caption("© 2025 - Streamlit SURA Style Demo | Designed for UI testing")
+
+st.divider()
+
+import streamlit as st
+from streamlit_option_menu import option_menu
+
+# Inicializa el estado de la pestaña
+if "current_tab" not in st.session_state:
+    st.session_state.current_tab = "Inicio"
+
+# Barra de navegación superior
+selected = options_navigation_horizontal(
+    st.session_state.current_tab,
+    PRIMARY_BLUE=PRIMARY_BLUE,
+    LIGHT_BLUE=LIGHT_BLUE,
+    DARK_GRAY=DARK_GRAY,
+    WHITE=WHITE,
+)
+
+
+# Actualiza la pestaña actual al hacer clic
+st.session_state.current_tab = selected
+
+# --- CONTENIDO DE CADA SECCIÓN ---
+if selected == "Inicio":
+    st.title("🏥 Recomendador de Rutas Médicas - ARL Innovetec")
+    st.markdown("""
+    Bienvenido al asistente de recomendación de puntos de atención médica.  
+    Usa el botón siguiente para comenzar con el formulario del paciente.
+    """)
+    if st.button("➡️ Ir al Formulario"):
+        st.session_state.current_tab = "Formulario"
+        st.rerun()
+
+# --- FORMULARIO ---
+elif selected == "Formulario":
+    st.header("🧾 Formulario del Paciente")
+    st.session_state["nombre"] = st.text_input(
+        "Nombre del paciente", st.session_state.get("nombre", "")
+    )
+    st.session_state["edad"] = st.number_input(
+        "Edad", 0, 120, st.session_state.get("edad", 30)
+    )
+
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("⬅️ Volver al Inicio"):
+            st.session_state.current_tab = "Inicio"
+            st.rerun()
+    with col2:
+        if st.button("➡️ Ir al Mapa"):
+            st.session_state.current_tab = "Mapa Interactivo"
+            st.rerun()
+
+# --- MAPA INTERACTIVO ---
+elif selected == "Mapa Interactivo":
+    st.header("🗺️ Mapa Interactivo")
+    st.markdown("Selecciona tu ubicación para ver los puntos de atención recomendados.")
+    st.map()
+
+    cols = st.columns([2, 5, 1])
+    with cols[0]:
+        if st.button("⬅️ Volver al Formulario"):
+            st.session_state.current_tab = "Formulario"
+            st.rerun()
+    with cols[2]:
+        if st.button("🏁 Finalizar"):
+            st.success(
+                f"¡Gracias, {st.session_state.get('nombre', 'Paciente')}! Se han registrado tus datos correctamente."
+            )
+
+st.divider()

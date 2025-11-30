@@ -55,6 +55,7 @@ def style_buttons():
     st.markdown(
         f"""
         <style>
+        /* === General buttons === */
         div.stButton > button:first-child,
         div[data-testid="baseButton-secondary"],
         div[data-testid="baseButton-primary"],
@@ -68,12 +69,22 @@ def style_buttons():
             transition: all 0.3s ease !important;
             box-shadow: 2px 2px 6px rgba(0,0,0,0.15) !important;
         }}
+
+        /* Ensure text color remains white in all states */
+        div.stButton > button p,
+        div.stButton > button span,
+        .stButton > button * {{
+            color: {WHITE} !important;
+        }}
+        
+        /* Hover effects */
        div.stButton > button:hover,
         div[data-testid="baseButton-secondary"]:hover,
         div[data-testid="baseButton-primary"]:hover {{
-            background-color: {SECONDARY_BLUE};
+            background-color: {PRIMARY_BLUE} !important;
             transform: scale(1.03);
         }}
+        /* === Download buttons === */
         .stDownloadButton > button {{
             background-color: {YELLOW_ACCENT};
             color: {DARK_GRAY};

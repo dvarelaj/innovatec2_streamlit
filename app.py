@@ -7,91 +7,109 @@ import folium
 from folium.plugins import MarkerCluster, HeatMap, MiniMap, Draw, MeasureControl
 
 from utils.ui_style import general_style_orch
-from utils.ui_blocks import menu, fixed_header
+from utils.ui_blocks import menu, fixed_header, options_navigation_horizontal
+from utils.ui_maps import map_triage_locate
+
+# -------------------------------------------------------------------------
+## Inicialización de variables de estado
+
+
+# Inicializa el estado de la pestaña de la pagina de inicio
+if "current_tab_triage" not in st.session_state:
+    st.session_state.current_tab_triage = "Inicio"
+
+# Datos del paciente del estado de la sesión
+identificacion = st.session_state.get("identificacion_paciente", "")
+gravedad = st.session_state.get("gravedad", "")
+ciudad = st.session_state.get("ciudad", "")
+
+# Variables del triage
+ubicacion_usuario = st.session_state.get("user_location", None)
+
+# -------------------------------------------------------------------------
+## Inicialización de estilos y componentes
 
 general_style_orch()  # Inject custom styles
 menu()  # Setup sidebar menu
 fixed_header(
-    st.session_state.get("nombre_paciente", ""),
-    st.session_state.get("gravedad", ""),
-    st.session_state.get("ciudad", ""),
+    identificacion,
+    gravedad,
+    ciudad,
 )  # Custom fixed header
 
-tabs = st.tabs(["Home", "Form", "Map"])
 
-with tabs[0]:
+# -------------------------------------------------------------------------
+## Navegación de pestañas horizontal - pagina triage
+
+st.markdown(" ___ ")
+
+# Barra de navegación superior
+selected = options_navigation_horizontal(
+    st.session_state.current_tab_triage,
+)
+
+# Actualiza la pestaña actual al hacer clic
+st.session_state.current_tab_triage = selected
+
+if selected == "Inicio":
+    # --------------------------
+    ## Formulario de identificación incial
     st.empty()
+    cols = st.columns([2, 8, 2])
+    with cols[2]:
+        if st.button("Ir al Formulario ➡️"):
+            st.session_state.current_tab_triage = "Formulario"
+            st.rerun()
 
-with tabs[1]:
+elif selected == "Formulario":
+    # --------------------------
+    ## Formulario de preguntas tipo triage
     st.empty()
+    cols = st.columns([2, 4, 1])
+    with cols[0]:
+        if st.button("⬅️ Volver al Inicio"):
+            st.session_state.current_tab_triage = "Inicio"
+            st.rerun()
+    with cols[2]:
+        if st.button("Ir al Mapa ➡️ "):
+            st.session_state.current_tab_triage = "Mapa Interactivo"
+            st.rerun()
 
-with tabs[2]:
-    st.markdown("## Mapa Interactivo")
+elif selected == "Mapa Interactivo":
+    # --------------------------
+    ## Sección de mapa Interactivo
+    st.markdown("## Ubicación del Paciente")
+    st.markdown("Especifica tu ubicación exacta")
 
-    m2 = folium.Map(location=[4.65, -74.08], zoom_start=12)
-    coords = {
-        "Bogotá": [4.65, -74.1],
-        "Medellín": [6.25, -75.57],
-        "Cali": [3.43, -76.52],
-    }
-    cluster_ciudades = MarkerCluster(
-        name="Ciudades",
-    ).add_to(m2)
+    center_column = st.columns([1, 8, 1])[1]
+    with center_column:
+        map_output = map_triage_locate(ubicacion_usuario)
 
-    for city, coord in coords.items():
-        folium.Marker(
-            location=coord,
-            popup=city,
-            tooltip=city,
-            icon=folium.Icon(color="red", icon="hospital", prefix="fa"),
-        ).add_to(cluster_ciudades)
+    # --- Detect new clicks and update marker ---
+    if map_output and map_output["last_clicked"]:
+        st.session_state["user_location"] = map_output["last_clicked"]
+        st.rerun()  # refresh map to show new marker immediately
 
-    # MiniMap().add_to(m2)
+    if ubicacion_usuario:
+        lat = ubicacion_usuario["lat"]
+        lon = ubicacion_usuario["lng"]
+        col_center = st.columns([3, 4, 4])[1]
+        with col_center:
+            st.success(f"📍 Ubicación seleccionada: ({lat:.4f}, {lon:.4f})")
+    else:
+        st.info("Haz clic en el mapa para seleccionar tu ubicación.")
 
-    folium.TileLayer(
-        "OpenStreetMap",
-        name="Mapa #1",
-        show=True,
-    ).add_to(m2)
+    cols = st.columns([2, 6, 2])
+    with cols[0]:
+        if st.button("⬅️ Volver al Formulario"):
+            st.session_state.current_tab_triage = "Formulario"
+            st.rerun()
+    with cols[2]:
+        if st.button("Finalizar formulario"):
+            st.session_state.triage_completed = True
 
-    # folium.TileLayer(
-    #     "CartoDB positron",
-    #     name="Mapa #2",
-    #     attr="© OpenStreetMap contributors",
-    #     show=False,
-    # ).add_to(m2)
-
-    folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-        attr="Tiles © Esri — Source: Esri, DeLorme, NAVTEQ, USGS, and others",
-        name="Mapa #2",
-        show=False,
-    ).add_to(m2)
-
-    folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
-        name="Mapa #3",
-        show=False,
-    ).add_to(m2)
-
-    folium.plugins.LocateControl(auto_start=False).add_to(m2)
-
-    folium.plugins.Fullscreen(
-        position="topright",
-        title="Expandir",
-        title_cancel="Salir",
-        force_separate_button=True,
-    ).add_to(m2)
-
-    folium.LayerControl().add_to(m2)
-
-    # m2.add_child(folium.plugins.MeasureControl())
-
-    columns = st.columns([1, 8, 1])
-
-    with columns[1]:
-        st_folium(m2, width=800, height=500)
+    if st.session_state.get("triage_completed", False):
+        st.success("✅ El formulario de triage ha sido completado con éxito.")
 
 st.markdown("___")
 
