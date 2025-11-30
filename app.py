@@ -6,7 +6,6 @@ from streamlit_folium import st_folium
 import folium
 from folium.plugins import MarkerCluster, HeatMap, MiniMap, Draw, MeasureControl
 
-
 from utils.ui_style import general_style_orch
 from utils.ui_blocks import menu, fixed_header
 
@@ -28,33 +27,25 @@ with tabs[1]:
 
 with tabs[2]:
     st.markdown("## Mapa Interactivo")
-    m = folium.Map(location=[4.65, -74.08], zoom_start=12)
-    m.add_child(folium.LatLngPopup())  # Allow clicking and obtain coordinates
-
-    folium.Marker(
-        location=[4.711, -74.0721], popup="Bogotá", tooltip="Click para ver"
-    ).add_to(m)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    columns = st.columns([1, 8, 1])
-
-    with columns[1]:
-        output = st_folium(m, width=800, height=500)
-        if output["last_clicked"]:
-            st.write("Selected location:", output["last_clicked"])
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     m2 = folium.Map(location=[4.65, -74.08], zoom_start=12)
-    coords = [
-        [4.65, -74.1],  # Bogotá
-        [6.25, -75.57],  # Medellín
-        [3.43, -76.52],  # Cali
-    ]
-    MarkerCluster(
-        locations=coords, popups=["Bogotá", "Medellín", "Cali"], name="Ciudades"
+    coords = {
+        "Bogotá": [4.65, -74.1],
+        "Medellín": [6.25, -75.57],
+        "Cali": [3.43, -76.52],
+    }
+    cluster_ciudades = MarkerCluster(
+        name="Ciudades",
     ).add_to(m2)
+
+    for city, coord in coords.items():
+        folium.Marker(
+            location=coord,
+            popup=city,
+            tooltip=city,
+            icon=folium.Icon(color="red", icon="hospital", prefix="fa"),
+        ).add_to(cluster_ciudades)
+
     # MiniMap().add_to(m2)
 
     folium.TileLayer(
@@ -95,7 +86,7 @@ with tabs[2]:
 
     folium.LayerControl().add_to(m2)
 
-    m2.add_child(folium.plugins.MeasureControl())
+    # m2.add_child(folium.plugins.MeasureControl())
 
     columns = st.columns([1, 8, 1])
 
