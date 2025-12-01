@@ -2,6 +2,49 @@ import streamlit as st
 from streamlit_folium import st_folium
 import folium
 from folium.plugins import MarkerCluster, LocateControl, Fullscreen
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderRateLimited
+import time
+
+
+@st.cache_data(show_spinner=False)
+def get_coordinates_co(city_name: str):
+    """Get geographic coordinates for a Colombian city.
+
+    This function uses OpenStreetMap's Nominatim service to geocode a city name
+    and retrieve its latitude and longitude coordinates.
+
+    Args:
+        city_name (str): The name of the city to geocode.
+
+    Returns:
+        A tuple containing (latitude, longitude) if the city is found, None otherwise.
+
+    Example:
+        >>> coords = get_coordinates_co("Bogotá")
+        >>> print(coords)
+        (4.624335, -74.063644)
+    """
+
+    geolocator = Nominatim(user_agent="triage_app_")
+
+    for _ in range(3):  # Try up to 3 times
+        try:
+            time.sleep(1)
+            location = geolocator.geocode(f"ciudad: {city_name}, Colombia", timeout=5)
+            if location:
+                return (location.latitude, location.longitude)
+            else:
+                location = geolocator.geocode(f"{city_name}, Colombia", timeout=5)
+                if location:
+                    return (location.latitude, location.longitude)
+                else:
+                    return None
+        except (GeocoderTimedOut, GeocoderRateLimited):
+            time.sleep(2)
+
+    st.warning(f"No se pudieron obtener coordenadas para '{city_name}'.")
+    return (4.5709, -74.2973)  # Fallback (Colombia center)
 
 
 def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
@@ -28,9 +71,35 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
             output = map_triage_locate()
             coords = output["last_clicked"]
     """
+    # --- Determine initial map center ---
 
-    # Initialize Folium map
-    m = folium.Map(location=[4.65, -74.08], zoom_start=12)
+    # Ensure city coordinates exist in session state
+    if "city_lat" not in st.session_state or "city_lon" not in st.session_state:
+        st.session_state.city_lat, st.session_state.city_lon = (
+            4.5709,
+            -74.2973,
+        )  # Default center (Colombia)
+
+    # If we already queried the city coordinates once, reuse them
+    if not st.session_state.get("coordinates_queried_ciudad", False):
+        # Only run the geocoding once
+        coords = get_coordinates_co(st.session_state.get("ciudad", "Colombia"))
+
+        if coords:  # If geocoding succeeded
+            st.session_state.city_lat, st.session_state.city_lon = coords
+        else:
+            st.warning(
+                f"No se encontraron coordenadas para '{st.session_state.get('ciudad', 'Desconocida')}'."
+            )
+            st.session_state.city_lat, st.session_state.city_lon = (4.5709, -74.2973)
+
+        st.session_state.coordinates_queried_ciudad = True
+
+    # Initialize map centered on user's city
+    m = folium.Map(
+        location=[st.session_state["city_lat"], st.session_state["city_lon"]],
+        zoom_start=14,
+    )
 
     # --- Example markers for key Colombian cities ---
     coords = {

@@ -1,6 +1,13 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 from utils.ui_style import *
+from utils.input_data.triage_symptoms import (
+    get_categorias,
+    get_sintomas,
+    get_modificadores,
+    validate_selection,
+)
+
 import time
 
 
@@ -198,8 +205,8 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
 
         sexo = st.selectbox(
             "Sexo Biológico *",
-            options=SEXO_OPTIONS,
-            help="Seleccione el sexo biológico del paciente",
+            options=[""] + SEXO_OPTIONS,
+            help="Seleccione el sexo biológico del usuario",
             key="sexo",
         )
 
@@ -214,7 +221,7 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
             index=list(DEPARTAMENTOS_CIUDADES.keys()).index(
                 st.session_state.selected_departamento
             ),
-            help="Seleccione el departamento de residencia",
+            help="Seleccione el departamento",
             key="departamento_select",
         )
 
@@ -238,13 +245,20 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
             if "ciudad_selected" not in st.session_state
             or not st.session_state.ciudad_selected
             else ciudades_disponibles.index(st.session_state.ciudad_selected),
-            help="Seleccione la ciudad o municipio de residencia",
+            help="Seleccione la ciudad o municipio",
             key="ciudad_selected",
         )
 
+    # ------------- FORM RESPONSE -------------
     if st.session_state.get("form_inicio_completed", False):
         st.success("✅ Usuario identificado correctamente")
         st.markdown("")
+
+        cols = st.columns([3, 4, 3])
+        with cols[1]:
+            if st.button("Ir al Formulario ➡️", use_container_width=True):
+                st.session_state.current_tab_triage = "Formulario"
+                st.rerun()
 
     # ------------- ACTION BUTTON -------------
     st.markdown("")
@@ -277,7 +291,166 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
 
             # Simulate database check
             with st.spinner("🔍 Consultando base de datos del paciente..."):
-                time.sleep(2)
+                time.sleep(3)
 
             st.session_state.form_inicio_completed = True
             st.rerun()
+
+
+def symptoms_form(
+    get_categorias=get_categorias,
+    get_sintomas=get_sintomas,
+    get_modificadores=get_modificadores,
+    validate_selection=validate_selection,
+):
+    """
+    Render the triage symptom selection form in Streamlit.
+
+    This form guides the user through a 3-step symptom identification process:
+    - Selecting the body area (category)
+    - Selecting the specific symptom within that category
+    - Selecting a symptom modifier (if applicable)
+
+    All selections are stored in `st.session_state`. The function also validates
+    the final combination of category, symptom, and modifier using the provided
+    `validate_selection()` function.
+
+    Parameters
+    ----------
+    get_categorias : function
+        A function that returns a list of available body categories.
+    get_sintomas : function
+        A function that receives a category and returns a list of symptoms related to it.
+    get_modificadores : function
+        A function that receives (category, symptom) and returns a list of possible modifiers.
+    validate_selection : function
+        A function that receives (category, symptom, modifier) and returns True if
+        the combination is valid, otherwise False.
+
+    Returns
+    -------
+    bool
+        True if a valid combination of category, symptom, and modifier is selected.
+        False otherwise.
+    """
+
+    try:
+        # ---------  CATEGORIES ----------------
+        categorias = get_categorias()
+
+        # Determine index dynamically to preserve user's previous selection
+        categoria_index = (
+            0
+            if not st.session_state.get("selected_categoria")
+            else categorias.index(st.session_state.selected_categoria) + 1
+        )
+
+        categoria = st.selectbox(
+            "1️⃣ ¿En qué área del cuerpo se presenta el síntoma? *",
+            options=["Seleccione una opción..."] + categorias,
+            index=categoria_index,
+            help="Seleccione la categoría que mejor describe el área afectada",
+            key="categoria_select",
+        )
+
+        # Update the selected category in session_state
+        if categoria != "Seleccione una opción...":
+            st.session_state.selected_categoria = categoria
+        else:
+            # Reset downstream selections if user resets category
+            st.session_state.selected_categoria = None
+            st.session_state.selected_sintoma = None
+            st.session_state.selected_modificador = None
+
+        # ------------  SYMPTOMS --------------
+        # Select Symptom (only shown if category is selected)
+        if st.session_state.selected_categoria:
+            sintomas = get_sintomas(st.session_state.selected_categoria)
+
+            # Determine index dynamically to preserve user's previous selection
+            sintoma_index = (
+                0
+                if not st.session_state.get("selected_sintoma")
+                else sintomas.index(st.session_state.selected_sintoma) + 1
+            )
+
+            sintoma = st.selectbox(
+                "2️⃣ ¿Cuál de los siguientes síntomas te identifica mejor? *",
+                options=["Seleccione una opción..."] + sintomas,
+                index=sintoma_index,
+                help="Seleccione el síntoma específico que presenta",
+                key="sintoma_select",
+            )
+
+            if sintoma != "Seleccione una opción...":
+                st.session_state.selected_sintoma = sintoma
+            else:
+                # Reset next step if symptom is deselected
+                st.session_state.selected_sintoma = None
+                st.session_state.selected_modificador = None
+
+        # ------------  MODIFIERS --------------
+        # Select Modifier (only shown if symptom is selected)
+        if st.session_state.get("selected_sintoma"):
+            modificadores = get_modificadores(
+                st.session_state.selected_categoria, st.session_state.selected_sintoma
+            )
+
+            # Determine index dynamically to preserve user's previous selection
+            modificador_index = (
+                0
+                if not st.session_state.get("selected_modificador")
+                else modificadores.index(st.session_state.selected_modificador) + 1
+            )
+
+            modificador = st.selectbox(
+                "3️⃣ ¿El síntoma está asociado con alguna de estas características? *",
+                options=["Seleccione una opción..."] + modificadores,
+                index=modificador_index,
+                help="Seleccione el modificador que mejor describe su situación",
+                key="modificador_select",
+            )
+
+            if modificador != "Seleccione una opción...":
+                st.session_state.selected_modificador = modificador
+            else:
+                st.session_state.selected_modificador = None
+
+        # ------------  VALIDATION TRIAGE  --------------
+        # Validate full selection
+        if all(
+            [
+                st.session_state.get("selected_categoria"),
+                st.session_state.get("selected_sintoma"),
+                st.session_state.get("selected_modificador"),
+            ]
+        ):
+            is_valid = validate_selection(
+                st.session_state.selected_categoria,
+                st.session_state.selected_sintoma,
+                st.session_state.selected_modificador,
+            )
+
+            st.markdown("---")
+
+            if is_valid:
+                st.info(
+                    "A continuación especifique su ubicación para completar el triage."
+                )
+                return True
+            else:
+                st.error("❌ Combinación inválida. Revise su selección.")
+                return False
+
+        # If not all selections are complete, return False by default
+        return False
+
+    except Exception:
+        # Reset selections on error
+        st.session_state.selected_categoria = None
+        st.session_state.selected_sintoma = None
+        st.session_state.selected_modificador = None
+
+        st.rerun()
+
+        return False
