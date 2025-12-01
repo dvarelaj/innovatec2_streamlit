@@ -10,6 +10,12 @@ from utils.ui_blocks import (
 )
 from utils.ui_maps import map_triage_locate
 from utils.ui_data import ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES
+from utils.input_data.triage_symptoms import (
+    get_categorias,
+    get_sintomas,
+    get_modificadores,
+    validate_selection,
+)
 
 # -------------------------------------------------------------------------
 ## Inicialización de variables de estado
@@ -32,7 +38,9 @@ departamento = st.session_state.get("departamento", "")
 ubicacion_usuario = st.session_state.get("ubicacion_usuario", None)
 
 # Respuestas del Triage
-
+for key in ["selected_categoria", "selected_sintoma", "selected_modificador"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
 # -------------------------------------------------------------------------
 ## Inicialización de estilos y componentes
@@ -89,19 +97,107 @@ elif selected == "Formulario":
     ## Formulario de preguntas tipo triage
 
     if st.session_state.get("form_inicio_completed", False):
-        st.empty()
-        cols = st.columns([2, 4, 2])
-        with cols[0]:
-            if st.button("⬅️ Volver al Inicio", use_container_width=True):
-                st.session_state.current_tab_triage = "Inicio"
-                st.rerun()
-        with cols[2]:
-            if st.button("Ir al Mapa ➡️ ", use_container_width=True):
-                st.session_state.current_tab_triage = "Mapa Interactivo"
-                st.rerun()
+        st.markdown("### Selección de Síntomas")
+
+        # --------------------------
+        ## Seleccionar Categoría
+        categorias = get_categorias()
+
+        categoria = st.selectbox(
+            "1️⃣ ¿En qué área del cuerpo se presenta el síntoma? *",
+            options=["Seleccione una opción..."] + categorias,
+            index=0
+            if not st.session_state.selected_categoria
+            else categorias.index(st.session_state.selected_categoria) + 1,
+            help="Seleccione la categoría que mejor describe el área afectada",
+            key="categoria_select",
+        )
+
+        # Actualizar selección
+        if categoria != "Seleccione una opción...":
+            st.session_state.selected_categoria = categoria
+        else:
+            st.session_state.selected_categoria = None
+            st.session_state.selected_sintoma = None
+            st.session_state.selected_modificador = None
+
+        # --------------------------
+        ## Seleccionar Síntoma (solo si hay categoría)
+        if st.session_state.selected_categoria:
+            sintomas = get_sintomas(st.session_state.selected_categoria)
+            sintoma = st.selectbox(
+                "2️⃣ ¿Cuál de los siguientes síntomas te identifica mejor? *",
+                options=["Seleccione una opción..."] + sintomas,
+                index=0
+                if not st.session_state.selected_sintoma
+                else sintomas.index(st.session_state.selected_sintoma) + 1,
+                help="Seleccione el síntoma específico que presenta",
+                key="sintoma_select",
+            )
+
+            if sintoma != "Seleccione una opción...":
+                st.session_state.selected_sintoma = sintoma
+            else:
+                st.session_state.selected_sintoma = None
+                st.session_state.selected_modificador = None
+
+        # --------------------------
+        ## Seleccionar Modificador (solo si hay síntoma)
+        if st.session_state.selected_sintoma:
+            modificadores = get_modificadores(
+                st.session_state.selected_categoria, st.session_state.selected_sintoma
+            )
+            modificador = st.selectbox(
+                "3️⃣ ¿El síntoma está asociado con alguna de estas características? *",
+                options=["Seleccione una opción..."] + modificadores,
+                index=0
+                if not st.session_state.selected_modificador
+                else modificadores.index(st.session_state.selected_modificador) + 1,
+                help="Seleccione el modificador que mejor describe su situación",
+                key="modificador_select",
+            )
+
+            if modificador != "Seleccione una opción...":
+                st.session_state.selected_modificador = modificador
+            else:
+                st.session_state.selected_modificador = None
+
+        #  Validar selección completa
+        if all(
+            [
+                st.session_state.selected_categoria,
+                st.session_state.selected_sintoma,
+                st.session_state.selected_modificador,
+            ]
+        ):
+            is_valid = validate_selection(
+                st.session_state.selected_categoria,
+                st.session_state.selected_sintoma,
+                st.session_state.selected_modificador,
+            )
+
+            st.markdown("---")
+
+            if is_valid:
+                st.info(
+                    "A continuación especifique su ubicación para completar el triage."
+                )
+            else:
+                st.error("❌ Combinación inválida. Revise su selección.")
+
+            #  Navegación entre pasos
+            cols = st.columns([2, 4, 2])
+            with cols[0]:
+                if st.button("⬅️ Volver al Inicio", use_container_width=True):
+                    st.session_state.current_tab_triage = "Inicio"
+                    st.rerun()
+            with cols[2]:
+                if st.button("Ubicación ➡️", use_container_width=True):
+                    st.session_state.current_tab_triage = "Mapa Interactivo"
+                    st.rerun()
     else:
         st.warning(
-            "⚠️ Por favor complete primero la sección de Identificación del Usuario."
+            "⚠️ Por favor complete primero la sección de Identificación del Paciente."
         )
 
 elif selected == "Mapa Interactivo":
