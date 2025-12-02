@@ -2,52 +2,13 @@ import streamlit as st
 from streamlit_folium import st_folium
 import folium
 from folium.plugins import MarkerCluster, LocateControl, Fullscreen
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderRateLimited
-import time
+
+from utils.ui_geocode import get_coordinates_co
 
 
-@st.cache_data(show_spinner=False)
-def get_coordinates_co(city_name: str):
-    """Get geographic coordinates for a Colombian city.
-
-    This function uses OpenStreetMap's Nominatim service to geocode a city name
-    and retrieve its latitude and longitude coordinates.
-
-    Args:
-        city_name (str): The name of the city to geocode.
-
-    Returns:
-        A tuple containing (latitude, longitude) if the city is found, None otherwise.
-
-    Example:
-        >>> coords = get_coordinates_co("Bogotá")
-        >>> print(coords)
-        (4.624335, -74.063644)
-    """
-
-    geolocator = Nominatim(user_agent="triage_app_")
-
-    for _ in range(3):  # Try up to 3 times
-        try:
-            time.sleep(1)
-            location = geolocator.geocode(f"ciudad: {city_name}, Colombia", timeout=5)
-            if location:
-                return (location.latitude, location.longitude)
-            else:
-                location = geolocator.geocode(f"{city_name}, Colombia", timeout=5)
-                if location:
-                    return (location.latitude, location.longitude)
-                else:
-                    return None
-        except (GeocoderTimedOut, GeocoderRateLimited):
-            time.sleep(2)
-
-    st.warning(f"No se pudieron obtener coordenadas para '{city_name}'.")
-    return (4.5709, -74.2973)  # Fallback (Colombia center)
-
-
-def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
+def map_triage_locate(
+    ubicacion_usuario, modo_ubicacion="Manual", width: int = 800, height: int = 500
+):
     """
     Display an interactive Folium map where the user can locate themselves.
 
@@ -83,7 +44,8 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
     # If we already queried the city coordinates once, reuse them
     if not st.session_state.get("coordinates_queried_ciudad", False):
         # Only run the geocoding once
-        coords = get_coordinates_co(st.session_state.get("ciudad", "Colombia"))
+        name_location = f"{st.session_state.get('ciudad', 'Colombia')}, {st.session_state.get('departamento', '')}"
+        coords = get_coordinates_co(name_location)
 
         if coords:  # If geocoding succeeded
             st.session_state.city_lat, st.session_state.city_lon = coords
@@ -96,11 +58,30 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
         st.session_state.coordinates_queried_ciudad = True
 
     # Initialize map centered on user's city
-    m = folium.Map(
-        location=[st.session_state["city_lat"], st.session_state["city_lon"]],
-        zoom_start=14,
-    )
-
+    # If modo_ubicacion is "Auto", disable dragging to avoid conflicts with LocateControl
+    if modo_ubicacion == "Auto":
+        m = folium.Map(
+            location=[st.session_state["city_lat"], st.session_state["city_lon"]],
+            zoom_start=15,
+            dragging=False,  # ❌ Disable dragging
+            scroll_wheel_zoom=False,  # ❌ Disable scroll wheel zoom
+            touch_zoom=False,  # ❌ Disable touch zoom
+            double_click_zoom=False,  # ❌ Disable double click zoom
+        )
+    else:
+        # --- Center map on user's selected location if available ---
+        if ubicacion_usuario:
+            # Center on user's selected location
+            m = folium.Map(
+                location=[ubicacion_usuario["lat"], ubicacion_usuario["lng"]],
+                zoom_start=15,
+            )
+        else:
+            # Center on city coordinates
+            m = folium.Map(
+                location=[st.session_state["city_lat"], st.session_state["city_lon"]],
+                zoom_start=13,
+            )
     # --- Example markers for key Colombian cities ---
     coords = {
         "Bogotá": [4.65, -74.1],
@@ -118,7 +99,7 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
         ).add_to(cluster_ciudades)
 
     # --- If the user has already selected a location, show the marker ---
-    if ubicacion_usuario:
+    if modo_ubicacion == "Manual" and ubicacion_usuario:
         user_lat = ubicacion_usuario["lat"]
         user_lng = ubicacion_usuario["lng"]
         folium.Marker(
@@ -130,8 +111,8 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
     # --- Base map layers ---
     folium.TileLayer(
         "OpenStreetMap",
-        name="Mapa base",
-        show=True,
+        name="Mapa base #1",
+        show=False,
     ).add_to(m)
 
     # folium.TileLayer(
@@ -144,8 +125,8 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
         attr="Tiles © Esri — Source: Esri, DeLorme, NAVTEQ, USGS, and others",
-        name="Mapa topográfico",
-        show=False,
+        name="Mapa base #2",
+        show=True,
     ).add_to(m)
 
     folium.TileLayer(
@@ -157,7 +138,19 @@ def map_triage_locate(ubicacion_usuario, width: int = 800, height: int = 500):
 
     # --- Map controls ---
     # Enable user location
-    LocateControl(auto_start=False).add_to(m)
+    if modo_ubicacion == "Auto":
+        LocateControl(
+            auto_start=True,
+            keepCurrentZoomLevel=False,
+            flyTo=True,
+            locateOptions={"maxZoom": 16},
+        ).add_to(m)
+    else:
+        LocateControl(
+            auto_start=False,
+            keepCurrentZoomLevel=False,
+            locateOptions={"maxZoom": 16},
+        ).add_to(m)
 
     # Fullscreen button
     Fullscreen(

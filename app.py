@@ -11,6 +11,7 @@ from utils.ui_blocks import (
 )
 from utils.ui_maps import map_triage_locate
 from utils.ui_data import ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES
+from utils.ui_geocode import get_coordinates_co, reverse_geocode, geocode_address
 
 
 # -------------------------------------------------------------------------
@@ -38,7 +39,7 @@ for key in ["selected_categoria", "selected_sintoma", "selected_modificador"]:
         st.session_state[key] = None
 
 # Variables para ubicación en mapas
-for key in ["coordinates_queried_ciudad"]:
+for key in ["coordinates_queried_ciudad", "last_processed_click", "last_auto_location"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -122,11 +123,12 @@ elif selected == "Mapa Interactivo":
     if st.session_state.get("form_inicio_completed", False):
         st.markdown("### Ubicación del Usuario")
 
+        # Metodos para ubicar al usuario
         modo_ubi = st.radio(
             "Seleccione el metodo para ubicar su posición:",
             options=[
-                "Hacer clic en el mapa",
-                "Usar ubicación actual del dispositivo",
+                "Selección manual",
+                "Ubicación del dispositivo",
                 "Escribir dirección",
             ],
             index=0,
@@ -134,23 +136,84 @@ elif selected == "Mapa Interactivo":
             horizontal=True,
         )
 
-        center_column = st.columns([1, 8, 1])[1]
-        with center_column:
-            map_output = map_triage_locate(ubicacion_usuario)
+        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-        # --- Detect new clicks and update marker ---
-        if map_output and map_output["last_clicked"]:
-            st.session_state["user_location"] = map_output["last_clicked"]
-            st.rerun()  # refresh map to show new marker immediately
+        # ------------
+        ## Seleccionar ubicación en el mapa manualmente
+        if modo_ubi == "Selección manual":
+            st.markdown("📍 **Haz clic en el mapa para seleccionar tu ubicación**")
 
+            center_column = st.columns([1, 8, 1])[1]
+            with center_column:
+                map_output = map_triage_locate(
+                    ubicacion_usuario, modo_ubicacion="Manual"
+                )
+
+            # -----------
+            # Detectar nuevos clics y actualizar el marcador
+            if map_output and map_output["last_clicked"]:
+                new_location = map_output["last_clicked"]
+
+                # Comprueba si se trata de un clic NUEVO (diferente de la ubicación almacenada anteriormente).
+                last_processed = st.session_state.get("last_processed_click")
+
+                if last_processed != new_location:
+                    # Este es un nuevo clic - procesarlo
+                    st.session_state["ubicacion_usuario"] = new_location
+                    st.session_state["last_processed_click"] = new_location
+                    st.rerun()  # Volver a ejecutar la app para actualizar el marcador
+
+        # ------------
+        ## Seleccionar ubicación en el mapa de manera automatica via plugins
+        elif modo_ubi == "Ubicación del dispositivo":
+            center_column = st.columns([1, 8, 1])[1]
+            with center_column:
+                map_output = map_triage_locate(ubicacion_usuario, modo_ubicacion="Auto")
+
+            # Capturar la ubicación del centro del mapa (localizacion automática)
+            if map_output and map_output.get("center"):
+                auto_location = {
+                    "lat": map_output["center"]["lat"],
+                    "lng": map_output["center"]["lng"],
+                }
+
+                # Verificar si es una nueva ubicación detectada automáticamente
+                last_auto = st.session_state.get("last_auto_location")
+
+                if last_auto != auto_location and auto_location != {
+                    "lat": st.session_state.get("city_lat"),
+                    "lng": st.session_state.get("city_lon"),
+                }:
+                    # Nueva ubicación automática detectada
+                    st.session_state["ubicacion_usuario"] = auto_location
+                    st.session_state["last_auto_location"] = auto_location
+                    st.rerun()
+
+        # ------------
+        ## Ingresar dirección manualmente para geocodificar
+        elif modo_ubi == "Escribir dirección":
+            st.empty()
+
+        # ------------
+        ## Obtener la direccion a partir de la latitud y longitud del usuario
         if ubicacion_usuario:
             lat = ubicacion_usuario["lat"]
             lon = ubicacion_usuario["lng"]
-            col_center = st.columns([3, 4, 4])[1]
-            with col_center:
-                st.success(f"📍 Ubicación seleccionada: ({lat:.4f}, {lon:.4f})")
-        else:
-            st.info("Haz clic en el mapa para seleccionar tu ubicación.")
+
+            # Crear una clave única para esta ubicación
+            location_key = f"{lat:.6f}_{lon:.6f}"
+
+            # Solo llamar a reverse_geocode si la ubicación cambió
+            if st.session_state.get("last_geocoded_key") != location_key:
+                address = reverse_geocode(lat, lon)
+                st.session_state["cached_address"] = address
+                st.session_state["last_geocoded_key"] = location_key
+            else:
+                # Usar la dirección en caché
+                address = st.session_state.get("cached_address", "Cargando...")
+
+            # Mostrar la dirección obtenida
+            st.success(f"**Dirección seleccionada**: {address}")
 
         cols = st.columns([2, 4, 2])
         with cols[0]:

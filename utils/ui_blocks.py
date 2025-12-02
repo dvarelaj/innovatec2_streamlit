@@ -435,11 +435,11 @@ def symptoms_form(
 
             if is_valid:
                 st.info(
-                    "A continuación especifique su ubicación para completar el triage."
+                    "**A continuación especifique su ubicación para completar el triage.**"
                 )
                 return True
             else:
-                st.error("❌ Combinación inválida. Revise su selección.")
+                st.error("❌ **Combinación inválida. Revise su selección.**")
                 return False
 
         # If not all selections are complete, return False by default
