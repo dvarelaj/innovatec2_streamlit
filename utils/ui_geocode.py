@@ -2,8 +2,10 @@ import streamlit as st
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderRateLimited, GeocoderUnavailable
 import time
+import requests
 
 
+###. OpenStreetMap Nominatim Geocoding #####
 @st.cache_data(show_spinner=False)
 def get_coordinates_co(city_name: str):
     """Get geographic coordinates for a Colombian city.
@@ -75,16 +77,68 @@ def reverse_geocode(lat, lon):
         return "Error al conectar con el servicio"
 
 
+#####. ArcGIS Public Geocoding (Alternative) #####
+
+
 @st.cache_data(show_spinner=False)
-def geocode_address(address):
-    """Get coordinates (lat, lon) from an address using OpenStreetMap (Nominatim)."""
-    geolocator = Nominatim(user_agent="triage_app_geocode")
-    try:
-        location = geolocator.geocode(address + ", Colombia", timeout=10)
-        if location:
-            return (location.latitude, location.longitude)
-        else:
-            return None
-    except Exception as e:
-        print(f"Error: {e}")
+def geocode_address_arcgis(address: str):
+    """
+    Geocoding: Dirección -> Coordenadas
+    """
+    url = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates"
+
+    # Es buena práctica limpiar la dirección
+    clean_address = address.strip()
+    if not clean_address:
         return None
+
+    params = {
+        "f": "json",
+        "singleLine": f"{clean_address}, Colombia",  # Forzamos búsqueda en Colombia
+        "maxLocations": 1,
+        "outFields": "Match_addr,Addr_type",
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        response.raise_for_status()  # Lanza error si hay problemas de conexión
+        data = response.json()
+
+        if data.get("candidates"):
+            top = data["candidates"][0]
+            lat = top["location"]["y"]
+            lng = top["location"]["x"]
+            formatted = top["address"]
+            return {"lat": lat, "lng": lng, "address": formatted}
+
+    except Exception as e:
+        st.error(f"Error conectando con el servicio de mapas: {e}")
+        return None
+
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def reverse_geocode_arcgis(lat: float, lng: float):
+    """
+    Reverse Geocoding: Coordenadas -> Dirección aproximada
+    """
+    url = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode"
+
+    params = {
+        "f": "json",
+        "location": f"{lng},{lat}",  # Nota: ArcGIS usa x,y (lng,lat)
+        "distance": 100,  # Buscar en un radio de 100 metros
+        "outSR": "",
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if "address" in data:
+                return data["address"]["Match_addr"]
+    except Exception:
+        return "Dirección no encontrada"
+
+    return "Dirección no encontrada"

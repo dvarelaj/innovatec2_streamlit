@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from typing import Dict, List, Optional
+import streamlit as st
 
 # Default path to the triage symptoms Excel file
 DEFAULT_EXCEL_PATH = "data/triage_sintomas.xlsx"
@@ -356,3 +357,104 @@ def get_triage_summary():
         "total_modificadores": total_modificadores,
         "categorias_detail": sorted(categorias_detail, key=lambda x: x["categoria"]),
     }
+
+
+def get_triage_decision(
+    categoria: str, sintoma: str, modificador: str, excel_path: str = DEFAULT_EXCEL_PATH
+) -> Optional[Dict[str, str]]:
+    """
+    Get the triage decision (Modalidad, Triage, Especialidad urgencias) for a specific
+    combination of categoria, sintoma, and modificador.
+
+    This function searches the Excel file for an exact match of the three parameters
+    and returns the corresponding decision values from the same row.
+
+    Parameters
+    ----------
+    categoria : str
+        The symptom category name (e.g., "Boca, garganta y cuello").
+    sintoma : str
+        The symptom name.
+    modificador : str
+        The modifier associated with the symptom.
+    excel_path : str, optional
+        Path to the Excel file. Default is DEFAULT_EXCEL_PATH.
+
+    Returns
+    -------
+    dict or None
+        A dictionary containing the decision values if found:
+        {
+            "modalidad": str,        # e.g., "Presencial", "Urgencias", "Virtual"
+            "triage": str,           # e.g., "T1", "T2", "T3", "T4", "T5"
+            "especialidad": str      # e.g., "Odontología", "Medicina interna"
+        }
+        Returns None if no matching row is found or if the file cannot be read.
+
+    Examples
+    --------
+    >>> decision = get_triage_decision(
+    ...     "Boca, garganta y cuello",
+    ...     "Golpe o trauma en la boca",
+    ...     "Ninguno de los anteriores"
+    ... )
+    >>> print(decision)
+    {'modalidad': 'Presencial', 'triage': 'T4', 'especialidad': 'Odontología'}
+
+    >>> # Case where no match is found
+    >>> decision = get_triage_decision("Categoria invalida", "Sintoma invalido", "Modificador invalido")
+    >>> print(decision)
+    None
+    """
+    # Check if file exists
+    if not os.path.exists(excel_path):
+        print(f"Error: Excel file not found at {excel_path}")
+        return None
+
+    try:
+        # Read Excel file
+        df = pd.read_excel(excel_path)
+
+        # Column indices (0-based)
+        COL_CATEGORIA = 7
+        COL_SINTOMA = 8
+        COL_MODIFICADOR = 9
+        COL_MODALIDAD = 10
+        COL_TRIAGE = 13
+        COL_ESPECIALIDAD = 17
+
+        # Filter dataframe to find matching row
+        mask = (
+            (df.iloc[:, COL_CATEGORIA] == categoria)
+            & (df.iloc[:, COL_SINTOMA] == sintoma)
+            & (df.iloc[:, COL_MODIFICADOR] == modificador)
+        )
+
+        matching_rows = df[mask]
+
+        if matching_rows.empty:
+            # No matching row found
+            return None
+
+        # Get the first matching row
+        row = matching_rows.iloc[0]
+
+        # Extract decision values
+        modalidad = row.iloc[COL_MODALIDAD]
+        triage = row.iloc[COL_TRIAGE]
+        especialidad = row.iloc[COL_ESPECIALIDAD]
+
+        # Clean up values (handle NaN and strip whitespace)
+        modalidad = str(modalidad).strip() if pd.notna(modalidad) else ""
+        triage = str(triage).strip() if pd.notna(triage) else ""
+        especialidad = str(especialidad).strip() if pd.notna(especialidad) else ""
+
+        return {
+            "modalidad": modalidad,
+            "triage": triage,
+            "especialidad": especialidad,
+        }
+
+    except Exception as e:
+        st.error(f"Error reading symptoms file: {str(e)}")
+        return None

@@ -6,10 +6,9 @@ from utils.input_data.triage_symptoms import (
     get_sintomas,
     get_modificadores,
     validate_selection,
+    get_triage_decision,
 )
-
 import time
-
 
 BUG_REPORT_URL = "https://www.sura.co/arl"
 HELP_URL = "https://www.sura.co/arl"
@@ -40,7 +39,7 @@ def menu() -> None:
     st.sidebar.image("assets/logos/temp.png", use_container_width=True)
     st.sidebar.markdown("---")
     st.sidebar.page_link("app.py", label="Triage")
-    st.sidebar.page_link("pages/1_styles_test.py", label="Style Test Page")
+    # st.sidebar.page_link("pages/1_styles_test.py", label="Style Test Page")
 
     hide_menu_style = """
     <style>
@@ -51,7 +50,7 @@ def menu() -> None:
     st.sidebar.markdown("---")
 
 
-def fixed_header(nombre_usuario: str, gravedad: str, ciudad: str):
+def fixed_header(nombre_usuario: str, decision: str, ciudad: str):
     """Display a custom header with user information."""
     st.markdown(
         f"""
@@ -79,7 +78,7 @@ def fixed_header(nombre_usuario: str, gravedad: str, ciudad: str):
             <div class="info">
                 Usuario: <b>{nombre_usuario}</b> &nbsp;|&nbsp;
                 Ciudad: <b>{ciudad}</b> &nbsp;|&nbsp;
-                Gravedad: <b style="color:#FFEB3B;">{gravedad}</b>
+                Decisión: <b style="color:#FFEB3B;">{decision}</b>
             </div>
         </div>
         """,
@@ -98,7 +97,7 @@ def options_navigation_horizontal(
     Create a horizontal navigation bar using `streamlit-option-menu`.
 
     This component displays a responsive horizontal menu with three main options
-    ("Inicio", "Formulario", "Mapa Interactivo") styled according to the provided
+    ("Inicio", "Formulario", "Mapa ubicación") styled according to the provided
     color palette. It is designed to be used as the main navigation header for
     Streamlit multi-section apps.
 
@@ -118,15 +117,15 @@ def options_navigation_horizontal(
     Returns
     -------
     str
-        The name of the selected option ("Inicio", "Formulario", or "Mapa Interactivo").
+        The name of the selected option ("Inicio", "Formulario", or "Mapa ubicación").
     """
 
     selected = option_menu(
         menu_title=None,
-        options=["Inicio", "Formulario", "Mapa Interactivo"],
+        options=["Inicio", "Formulario", "Mapa ubicación"],
         icons=["house", "file-earmark-text", "map"],
         orientation="horizontal",
-        default_index=["Inicio", "Formulario", "Mapa Interactivo"].index(current_tab),
+        default_index=["Inicio", "Formulario", "Mapa ubicación"].index(current_tab),
         styles={
             "container": {
                 "padding": "0!important",
@@ -254,9 +253,9 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
         st.success("✅ Usuario identificado correctamente")
         st.markdown("")
 
-        cols = st.columns([3, 4, 3])
-        with cols[1]:
-            if st.button("Ir al Formulario ➡️", use_container_width=True):
+        arrow_cols = st.columns([3, 4, 3])
+        with arrow_cols[1]:
+            if st.button("Seguir al Formulario →", use_container_width=True):
                 st.session_state.current_tab_triage = "Formulario"
                 st.rerun()
 
@@ -431,15 +430,25 @@ def symptoms_form(
                 st.session_state.selected_modificador,
             )
 
-            st.markdown("---")
-
             if is_valid:
-                st.info(
-                    "**A continuación especifique su ubicación para completar el triage.**"
+                st.session_state["form_symptoms_completed"] = True
+
+                # ------------  TRIAGE RESULTS  --------------
+                # Get triage decision
+                triage_decision = get_triage_decision(
+                    st.session_state.selected_categoria,
+                    st.session_state.selected_sintoma,
+                    st.session_state.selected_modificador,
                 )
+                st.session_state["decision_triage"] = triage_decision["triage"]
+                st.session_state["decision_modalidad"] = triage_decision["modalidad"]
+                st.session_state["decision_especialidad"] = triage_decision[
+                    "especialidad"
+                ]
+
                 return True
             else:
-                st.error("❌ **Combinación inválida. Revise su selección.**")
+                st.session_state["form_symptoms_completed"] = False
                 return False
 
         # If not all selections are complete, return False by default
