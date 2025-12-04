@@ -3,6 +3,9 @@ import os
 from typing import Dict, List, Optional
 import streamlit as st
 
+from utils.general_utils import text_cleaning
+import numpy as np
+
 # Default path to the triage symptoms Excel file
 DEFAULT_EXCEL_PATH = "data/triage_sintomas.xlsx"
 
@@ -10,6 +13,7 @@ DEFAULT_EXCEL_PATH = "data/triage_sintomas.xlsx"
 _SINTOMAS_TRIAGE: Optional[Dict[str, Dict[str, List[str]]]] = None
 
 
+@st.cache_data(show_spinner=False)
 def load_sintomas_from_excel(
     excel_path: str = DEFAULT_EXCEL_PATH,
     col_categoria: int = 7,
@@ -447,14 +451,132 @@ def get_triage_decision(
         # Clean up values (handle NaN and strip whitespace)
         modalidad = str(modalidad).strip() if pd.notna(modalidad) else ""
         triage = str(triage).strip() if pd.notna(triage) else ""
-        especialidad = str(especialidad).strip() if pd.notna(especialidad) else ""
+        especialidad = (
+            str(especialidad).strip() if pd.notna(especialidad) else "Medicina General"
+        )
 
         return {
             "modalidad": modalidad,
             "triage": triage,
-            "especialidad": especialidad,
+            "especialidad": text_cleaning(especialidad).title(),
         }
 
     except Exception as e:
         st.error(f"Error reading symptoms file: {str(e)}")
         return None
+
+
+@st.cache_data(show_spinner=True)
+def build_triage_combinations_from_excel(
+    excel_path: str = DEFAULT_EXCEL_PATH,
+) -> pd.DataFrame:
+    """
+    Build a structured DataFrame of unique triage combinations from the raw triage Excel.
+
+    This function reads the full triage symptom matrix from Excel and extracts
+    all unique combinations of category, symptom, modifier, triage level,
+    modality, and specialty. It is used to prepare the data for
+    correspondence mapping with provider services.
+
+    Parameters
+    ----------
+    excel_path : str
+        Path to the triage Excel file (e.g., "../data/triage_sintomas.xlsx").
+
+    Returns
+    -------
+    pd.DataFrame
+        Cleaned and normalized DataFrame with columns:
+        ['categoria', 'sintoma', 'modificador', 'nivel_triage',
+         'modalidad', 'especialidad'].
+
+    Example
+    -------
+    >>> df_triage = build_triage_combinations_from_excel("../data/triage_sintomas.xlsx")
+    >>> df_triage.head()
+          categoria              sintoma                   modificador nivel_triage modalidad  especialidad
+    0  Boca y cuello  Dolor al tragar     Persistente y con fiebre     T3          urgencias  otorrinolaringologia
+    """
+
+    # === 1. Leer el archivo completo ===
+    df = pd.read_excel(excel_path)
+
+    # Normalizar nombres de columnas (remover tildes y caracteres especiales)
+    df.columns = (
+        df.columns.str.normalize("NFKD")
+        .str.encode("ascii", errors="ignore")
+        .str.decode("utf-8")
+        .str.lower()
+        .str.strip()
+    )
+
+    # === 2. Detectar columnas relevantes automáticamente ===
+    posibles_cols = df.columns.tolist()
+
+    # Asumimos que las columnas clave incluyen estas palabras
+    col_categoria = next((c for c in posibles_cols if "categ" in c), None)
+    col_sintoma = next((c for c in posibles_cols if "sintoma" in c), None)
+    col_modificador = next((c for c in posibles_cols if "modif" in c), None)
+    col_triage = next((c for c in posibles_cols if "triage" in c), None)
+    col_modalidad = next((c for c in posibles_cols if "modal" in c), None)
+    col_especialidad = next((c for c in posibles_cols if "especial" in c), None)
+
+    if not all(
+        [col_categoria, col_sintoma, col_modificador, col_triage, col_modalidad]
+    ):
+        raise ValueError("No se encontraron todas las columnas necesarias en el Excel.")
+
+    # === 3. Filtrar columnas relevantes ===
+    columnas_utiles = [
+        col_categoria,
+        col_sintoma,
+        col_modificador,
+        col_triage,
+        col_modalidad,
+        col_especialidad,
+    ]
+    df_triage = df[columnas_utiles].copy()
+
+    # === 4. Normalización de texto ===
+    for c in columnas_utiles:
+        df_triage[c] = (
+            df_triage[c]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .str.normalize("NFKD")
+            .str.encode("ascii", errors="ignore")
+            .str.decode("utf-8")
+            .str.replace(r"[^a-z0-9\s_]+", "", regex=True)
+            .str.replace(r"\s+", "_", regex=True)
+        )
+
+    # === 5. Eliminar filas vacías o duplicadas ===
+    df_triage = df_triage.dropna(subset=[col_categoria, col_sintoma])
+    df_triage = df_triage.drop_duplicates().reset_index(drop=True)
+
+    # === 6. Renombrar columnas ===
+    df_triage = df_triage.rename(
+        columns={
+            col_categoria: "categoria",
+            col_sintoma: "sintoma",
+            col_modificador: "modificador",
+            col_triage: "nivel_triage",
+            col_modalidad: "modalidad",
+            col_especialidad: "especialidad",
+        }
+    )
+
+    # === 7. Ajustar formatos de triage ===
+    df_triage["nivel_triage"] = df_triage["nivel_triage"].str.upper()
+    df_triage["nivel_triage"] = df_triage["nivel_triage"].replace(
+        {"1": "T1", "2": "T2", "3": "T3", "4": "T4", "5": "T5"}
+    )
+
+    # === 8. Devolver si especialidad es None ===
+    if "especialidad" in df_triage.columns:
+        df_triage["especialidad"] = df_triage["especialidad"].replace(
+            {"nan": "medicina_general"}
+        )
+
+    return df_triage
