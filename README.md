@@ -1,9 +1,14 @@
-# RutaSalud: Healthcare Triage and Provider Recommendation System
+# Healthcare Triage and Provider Recommendation System - Web App
 
-**Authors**: Diana Varela and Jhonattan Reales
+**Authors**: 
+
+| Nombre           | Correo                           |
+|------------------|-----------------------------------|
+| Diana Varela    | dianacvarelaj@gmail.com           |
+| Jhonattan Reales | jhonatanreales21@gmail.com       |
 
 ## Project Overview
-RutaSalud is an interactive web application developed using **Streamlit** to assist users in navigating healthcare services in Colombia. The application provides a comprehensive triage system to assess the urgency of medical conditions and recommends nearby healthcare providers based on the user's symptoms and location. This project aims to improve access to healthcare by offering personalized recommendations and route guidance.
+"RutaSalud" is an interactive web application developed using **Streamlit** to assist users in navigating healthcare services in Colombia. The application provides a comprehensive triage system to assess the urgency of medical conditions and recommends nearby healthcare providers based on the user's symptoms and location. This project aims to improve access to healthcare by offering personalized recommendations and route guidance.
 
 ## Key Features
 - **Symptom-Based Triage**: Users can input their symptoms to receive a triage classification (T1-T5) based on urgency.
@@ -43,8 +48,8 @@ RutaSalud is an interactive web application developed using **Streamlit** to ass
    ```
 3. Create and activate a Python environment (e.g., Conda):
    ```bash
-   conda create -n maestria python=3.11
-   conda activate maestria
+   conda create -n 'YOUR_ENV_NAME' python=3.11
+   conda activate 'YOUR_ENV_NAME'
    ```
 4. Install dependencies:
    ```bash
@@ -62,4 +67,4 @@ RutaSalud is an interactive web application developed using **Streamlit** to ass
 - **Multi-Language Support**: Add support for additional languages to improve accessibility.
 
 ## Acknowledgments
-This project was developed as part of the Master’s program in Artificial Intelligence and Analytics. Special thanks to our tutors and peers for their guidance and feedback.
+This project was developed as part of the Master’s program in Applied Artificial Intelligence of ICESI university. Special thanks to our tutors and peers for their guidance and feedback.
