@@ -18,12 +18,15 @@ from utils.ui_geocode import (
     geocode_address_arcgis,
     reverse_geocode_arcgis,
 )
-from utils.recommendation_engine import (
+from utils.matching_utils.recommendation_engine import (
     build_triage_correspondence_table,
     get_recommended_services,
     filter_providers_by_service_and_location,
     load_and_prepare_provider_data,
 )
+
+from utils.general_utils import text_cleaning
+from utils.debug_utils import show_recommendation_debug_info
 
 
 # -------------------------------------------------------------------------
@@ -343,6 +346,17 @@ elif selected == "Mapa ubicación":
             # Checkbox para confirmar la ubicación
             col_center = st.columns([3, 4, 3])[1]
             with col_center:
+                st.markdown(
+                    """
+                    <style>
+                    div[data-testid="stCheckbox"] label p {
+                        font-size: 1.1rem !important;
+                        font-weight: 600 !important;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
                 location_confirmed = st.checkbox(
                     "¿Está de acuerdo con esta ubicación?",
                     key="location_confirmation_checkbox",
@@ -378,7 +392,9 @@ elif selected == "Mapa ubicación":
                     st.rerun()
 
         if st.session_state.get("triage_completed", False):
-            st.success("✅ El formulario de triage ha sido completado con éxito.")
+            st.success(
+                "✅ **El formulario de triage ha sido completado con éxito.** Continue a la siguiente sección para obtener recomendaciones."
+            )
 
         # ========================================================================
         # SECCIÓN DE RECOMENDACIÓN DE PRESTADORES
@@ -388,6 +404,9 @@ elif selected == "Mapa ubicación":
             st.markdown("### 🏥 Recomendación de Prestadores")
 
             # Extract user data from session state
+            categoria = st.session_state.get("selected_categoria", "")
+            categoria = text_cleaning(categoria)
+
             nivel_triage = st.session_state.get("decision_triage")
             especialidad = st.session_state.get("decision_especialidad", "")
             user_dept = st.session_state.get("departamento", "")
@@ -404,11 +423,12 @@ elif selected == "Mapa ubicación":
                 with st.spinner("🔄 Cargando sistema de recomendación..."):
                     try:
                         df_correspondencia = build_triage_correspondence_table(
-                            threshold=0.7, top_k=3, method="semantic"
+                            threshold=0.7, top_k=2, method="semantic"
                         )
 
                         # Get recommended services for user's triage result
                         recomendacion = get_recommended_services(
+                            categoria=categoria,
                             nivel_triage=nivel_triage,
                             especialidad=especialidad,
                             df_correspondencia=df_correspondencia,
@@ -423,12 +443,11 @@ elif selected == "Mapa ubicación":
 
                         # Filter providers by service and location
                         providers_filtered = filter_providers_by_service_and_location(
-                            df_prestadores=df_prestadores,
                             servicios=servicios_recomendados,
                             departamento=user_dept,
                             municipio=user_city,
                             user_location=user_location,
-                            max_distance_km=50.0,
+                            max_distance_km=200.0,
                         )
 
                         # Store in session state
@@ -440,25 +459,10 @@ elif selected == "Mapa ubicación":
                                 f"✅ Se encontraron {len(providers_filtered)} prestadores recomendados"
                             )
 
-                            # Show matching info
-                            with st.expander(
-                                "ℹ️ Información de coincidencia", expanded=False
-                            ):
-                                st.write(f"**Nivel de triage:** {nivel_triage}")
-                                st.write(f"**Especialidad requerida:** {especialidad}")
-                                st.write(
-                                    f"**Servicios sugeridos:** {', '.join(servicios_recomendados)}"
-                                )
-                                st.write(f"**Tipo de coincidencia:** {tipo_match}")
-                                if scores:
-                                    st.write(
-                                        f"**Confianza:** {', '.join([f'{s:.2f}' for s in scores])}"
-                                    )
+                            # Display top 3 providers
+                            st.markdown("#### Top 3 - Prestadores Recomendados:")
 
-                            # Display top 5 providers
-                            st.markdown("#### 📍 Prestadores Recomendados")
-
-                            for idx, row in providers_filtered.head(5).iterrows():
+                            for idx, row in providers_filtered.head(3).iterrows():
                                 with st.container():
                                     col1, col2 = st.columns([3, 1])
 
@@ -491,7 +495,7 @@ elif selected == "Mapa ubicación":
                                     "prestador",
                                     "servicio_prestador",
                                     "direccion",
-                                    "telefono",
+                                    "telefono_fijo",
                                 ]
                                 if "distancia_km" in providers_filtered.columns:
                                     display_cols.append("distancia_km")
@@ -514,24 +518,41 @@ elif selected == "Mapa ubicación":
                         st.error(f"❌ Error al generar recomendaciones: {str(e)}")
                         st.exception(e)
 
+                    st.markdown("___")
+
+                    # Show matching info
+                    with st.expander(
+                        "ℹ️ Información de Triage -> Servicios", expanded=False
+                    ):
+                        st.write(f"**Nivel de triage:** {nivel_triage}")
+                        st.write(f"**Especialidad requerida:** {especialidad}")
+                        st.write(
+                            f"**Servicios sugeridos:** {', '.join(servicios_recomendados)}"
+                        )
+                        st.write(f"**Tipo de coincidencia:** {tipo_match}")
+                        if scores:
+                            st.write(
+                                f"**Confianza:** {', '.join([f'{s:.2f}' for s in scores])}"
+                            )
+
+                    # DEBUG: Mostrar información técnica del sistema
+                    show_recommendation_debug_info(
+                        categoria=categoria,
+                        nivel_triage=nivel_triage,
+                        especialidad=especialidad,
+                        user_dept=user_dept,
+                        user_city=user_city,
+                        user_location=user_location,
+                        df_correspondencia=df_correspondencia,
+                        servicios_recomendados=servicios_recomendados,
+                        scores=scores,
+                        tipo_match=tipo_match,
+                        df_prestadores=df_prestadores,
+                        providers_filtered=providers_filtered,
+                        expanded=False,
+                    )
+
     else:
         st.warning(
             "⚠️ Por favor complete primero la sección de Identificación del Usuario."
         )
-
-st.markdown("___")
-
-# st.markdown(
-#     """
-# <div style="
-#     background-color:#e8f5e9;
-#     padding:15px;
-#     border-radius:10px;
-#     border:1px solid #a5d6a7;
-#     text-align:center;">
-#     <h3 style='color:#2e7d32;'>✅ Recomendación</h3>
-#     <p>El centro médico <b>Clínica del Norte</b> está a solo <b>2.1 km</b>.</p>
-# </div>
-# """,
-#     unsafe_allow_html=True,
-# )
