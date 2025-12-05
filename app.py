@@ -113,13 +113,14 @@ selected = options_navigation_horizontal(
 # Actualiza la pestaña actual al hacer clic
 st.session_state.current_tab_triage = selected
 
-# Cargar ubicaciones dinámicamente desde datos de proveedores
-with st.spinner("🔄 Cargando directorio de proveedores"):
-    DEPARTAMENTOS_CIUDADES = get_departamentos_ciudades_from_providers()
 
 if selected == "Inicio":
     # --------------------------
     ## Sección de inicio y formulario de identificación del usuario
+
+    # Cargar ubicaciones dinámicamente desde datos de proveedores
+    with st.spinner("🔄 Cargando directorio de proveedores"):
+        DEPARTAMENTOS_CIUDADES = get_departamentos_ciudades_from_providers()
 
     st.markdown("### Identificación del Usuario")
     st.markdown("Complete los siguientes datos para iniciar el proceso de triage.")
