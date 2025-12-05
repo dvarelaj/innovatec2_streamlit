@@ -8,8 +8,8 @@ based on user triage results and location.
 import pandas as pd
 import streamlit as st
 from typing import Optional, Dict, List
-from utils.triage_matching import (
-    build_triage_combinations_from_excel,
+from utils.input_data.triage_symptoms import build_triage_combinations
+from utils.matching_utils.triage_matching import (
     build_correspondence_table,
 )
 from utils.input_data.providers_utils import (
@@ -57,7 +57,7 @@ def load_and_prepare_provider_data(
     return prestadores_final
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@st.cache_data(show_spinner=True, ttl=3600)
 def build_triage_correspondence_table(
     path_triage: str = "data/triage_sintomas.xlsx",
     path_prestadores: str = "data/prestadores_mapa.xlsx",
@@ -91,11 +91,11 @@ def build_triage_correspondence_table(
     -------
     pd.DataFrame
         Correspondence table with columns:
-        ['nivel_triage', 'modalidad_requerida', 'especialidad_requerida',
+        ['categoria','nivel_triage', 'modalidad_requerida', 'especialidad_requerida',
          'servicios_sugeridos', 'scores', 'tipo_coincidencia']
     """
     # Build triage combinations
-    df_triage = build_triage_combinations_from_excel(path_triage)
+    df_triage = build_triage_combinations(path_triage)
 
     # Load and prepare provider data
     prestadores_final = load_and_prepare_provider_data(
@@ -116,13 +116,18 @@ def build_triage_correspondence_table(
 
 
 def get_recommended_services(
-    nivel_triage: str, especialidad: str, df_correspondencia: pd.DataFrame
+    categoria: str,
+    nivel_triage: str,
+    especialidad: str,
+    df_correspondencia: pd.DataFrame,
 ) -> Dict[str, List]:
     """
     Get recommended services for a specific triage result.
 
     Parameters
     ----------
+    categoria : str
+        Triage category.
     nivel_triage : str
         Triage level (T1, T2, T3, T4, T5).
     especialidad : str
@@ -142,8 +147,10 @@ def get_recommended_services(
     especialidad_norm = especialidad.lower().strip()
 
     # Find matching row in correspondence table
-    mask = (df_correspondencia["nivel_triage"] == nivel_triage) & (
-        df_correspondencia["especialidad_requerida"] == especialidad_norm
+    mask = (
+        (df_correspondencia["categoria"] == categoria)
+        & (df_correspondencia["nivel_triage"] == nivel_triage)
+        & (df_correspondencia["especialidad_requerida"] == especialidad_norm)
     )
 
     matches = df_correspondencia[mask]
@@ -172,12 +179,13 @@ def get_recommended_services(
 
 
 def filter_providers_by_service_and_location(
-    df_prestadores: pd.DataFrame,
     servicios: List[str],
     departamento: str,
     municipio: str,
+    path_prestadores: str = "data/prestadores_mapa.xlsx",
+    path_prestadores_urg: str = "data/prestadores_urg.xlsx",
     user_location: Optional[Dict] = None,
-    max_distance_km: float = 50.0,
+    max_distance_km: float = 100.0,
 ) -> pd.DataFrame:
     """
     Filter providers by recommended services and location.
@@ -203,9 +211,14 @@ def filter_providers_by_service_and_location(
     pd.DataFrame
         Filtered and sorted provider dataset.
     """
+    # Load and prepare provider data
+    prestadores_final = load_and_prepare_provider_data(
+        path_prestadores, path_prestadores_urg
+    )
+
     # Filter by service
-    filtered = df_prestadores[
-        df_prestadores["servicio_prestador"].isin(servicios)
+    filtered = prestadores_final[
+        prestadores_final["servicio_prestador"].isin(servicios)
     ].copy()
 
     # Filter by location (department and municipality)
