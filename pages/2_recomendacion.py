@@ -102,7 +102,7 @@ with st.spinner("🔄 Cargando sistema de recomendación..."):
             departamento=user_dept,
             municipio=user_city,
             user_location=user_location,
-            max_distance_km=200.0,
+            max_distance_km=100.0,
         )
 
         # Guardar en session state
@@ -141,43 +141,49 @@ st.markdown("")
 
 if selected_tab == "Resumen":
     if len(providers_filtered) > 0:
-        st.success(
-            f"✅ Se encontraron {len(providers_filtered)} prestadores recomendados"
+        st.info(
+            f"🔎  Se identificaron **{len(providers_filtered)}** prestadores recomendados"
         )
 
         # Display top 3 providers
         st.markdown("### Top 3 - Prestadores Recomendados")
         st.markdown("")
 
-        for idx, row in providers_filtered.head(3).iterrows():
+        for idx, row in providers_filtered.head(5).iterrows():
             with st.container():
-                col1, col2 = st.columns([3, 1])
+                col1, col2, col3 = st.columns([5, 2, 1])
 
                 with col1:
                     st.markdown(f"**{row['prestador']}**")
                     st.caption(f"📌 {row['direccion']}")
-                    st.caption(f"🏥 Servicio: {row['servicio_prestador']}")
-
+                    st.caption(
+                        f"🏥 Servicio: {row['servicio_prestador'].replace('_', ' ').title()}"
+                    )
                     if "distancia_km" in row and row["distancia_km"] is not None:
                         st.caption(f"📏 Distancia: {row['distancia_km']:.2f} km")
+                    st.caption(f"temp: {row.get('prioridad_recomendacion', 'N/A')}")
 
                 with col2:
-                    priority = row.get("prioridad_recomendacion", "N/A")
-                    st.metric("Prioridad", f"#{priority}")
+                    if st.button(
+                        "🗺️ Ver Ruta", key=f"ver_ruta_{idx}", use_container_width=True
+                    ):
+                        st.session_state.selected_provider_for_route = idx
+                        st.session_state.current_tab_recomendacion = "Ruta"
+                        st.rerun()
 
                 st.markdown("---")
 
         # Show full table
-        with st.expander("📊 Ver tabla completa", expanded=False):
+        with st.expander("📊 Ver total prestadores recomendados", expanded=False):
             display_cols = [
                 "prestador",
-                "servicio_prestador",
+                # "servicio_prestador",
                 "direccion",
                 "telefono_fijo",
             ]
             if "distancia_km" in providers_filtered.columns:
                 display_cols.append("distancia_km")
-            display_cols.append("prioridad_recomendacion")
+            # display_cols.append("prioridad_recomendacion")
 
             st.dataframe(
                 providers_filtered[display_cols].head(20),
@@ -227,16 +233,16 @@ elif selected_tab == "Ruta":
     if len(providers_filtered) == 0:
         st.warning("⚠️ No hay prestadores disponibles para mostrar en el mapa.")
     else:
-        st.markdown("### 🗺️ Seleccione un prestador para ver la ruta")
+        st.markdown("#### Seleccione un prestador para ver la ruta")
         st.markdown("")
 
-        # Checkbox selection for top 3 providers
-        top3 = providers_filtered.head(3)
+        # Checkbox selection for top 5 providers
+        top3 = providers_filtered.head(5)
 
         selected_provider_idx = None
 
         for idx, row in top3.iterrows():
-            col1, col2 = st.columns([4, 1])
+            col1, col2, col3 = st.columns([4, 1, 2])
 
             with col1:
                 is_selected = st.checkbox(
@@ -259,7 +265,7 @@ elif selected_tab == "Ruta":
         if selected_provider_idx is not None:
             selected_row = providers_filtered.loc[selected_provider_idx]
 
-            st.markdown(f"### 📍 Ruta hacia: **{selected_row['prestador']}**")
+            st.markdown(f"#### 📍 Ruta hacia: **{selected_row['prestador']}**")
             st.markdown("")
 
             # Create map centered between user and provider
@@ -272,6 +278,26 @@ elif selected_tab == "Ruta":
             center_lat = (user_lat + provider_lat) / 2
             center_lng = (user_lng + provider_lng) / 2
 
+            # -------
+            ## External navigation link
+
+            # st.markdown("#### Navegación externa")
+
+            google_maps_url = (
+                f"https://www.google.com/maps/dir/?api=1"
+                f"&origin={user_lat},{user_lng}"
+                f"&destination={provider_lat},{provider_lng}"
+                f"&travelmode=driving"
+            )
+
+            st.markdown(
+                f"[🗺️ Abrir en Google Maps]({google_maps_url})",
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("---")
+
+            # ------
             # Create map
             m = folium.Map(
                 location=[center_lat, center_lng],
@@ -283,8 +309,8 @@ elif selected_tab == "Ruta":
             folium.Marker(
                 location=[user_lat, user_lng],
                 popup="Tu ubicación",
-                tooltip="Tu ubicación",
-                icon=folium.Icon(color="blue", icon="home", prefix="fa"),
+                tooltip=st.session_state.get("cached_address", "N/A"),
+                icon=folium.Icon(color="green", icon="user", prefix="fa"),
             ).add_to(m)
 
             # Add provider marker (red)
@@ -316,16 +342,24 @@ elif selected_tab == "Ruta":
                         <div style="
                             background-color: white;
                             border: 2px solid #1976D2;
-                            border-radius: 5px;
-                            padding: 5px 10px;
+                            border-radius: 6px;
+                            padding: 6px 75px 6px 4px;
                             font-weight: bold;
                             color: #1976D2;
                             text-align: center;
+                            font-size: 12px;
+                            transform: translate(-50%, -50%);
+                            position: relative;
                             white-space: nowrap;
+                            box-shadow: 0 0 4px rgba(0,0,0,0.2);
                         ">
                             📏 {selected_row["distancia_km"]:.2f} km
                         </div>
-                        """
+                        """,
+                        icon_anchor=(
+                            0,
+                            0,
+                        ),  # anchor top-left, but CSS translate recenters it
                     ),
                 ).add_to(m)
 
@@ -346,7 +380,9 @@ elif selected_tab == "Ruta":
             with col1:
                 st.write(f"**Nombre:** {selected_row['prestador']}")
                 st.write(f"**Dirección:** {selected_row['direccion']}")
-                st.write(f"**Servicio:** {selected_row['servicio_prestador']}")
+                st.write(
+                    f"**Servicio:** {selected_row['servicio_prestador'].replace('_', ' ').title()}"
+                )
 
             with col2:
                 st.write(f"**Teléfono:** {selected_row.get('telefono_fijo', 'N/A')}")
@@ -355,25 +391,6 @@ elif selected_tab == "Ruta":
                     and selected_row["distancia_km"] is not None
                 ):
                     st.write(f"**Distancia:** {selected_row['distancia_km']:.2f} km")
-                st.write(
-                    f"**Prioridad:** #{selected_row.get('prioridad_recomendacion', 'N/A')}"
-                )
-
-            # External navigation link
-            st.markdown("---")
-            st.markdown("#### 🚗 Navegación externa")
-
-            google_maps_url = (
-                f"https://www.google.com/maps/dir/?api=1"
-                f"&origin={user_lat},{user_lng}"
-                f"&destination={provider_lat},{provider_lng}"
-                f"&travelmode=driving"
-            )
-
-            st.markdown(
-                f"[🗺️ Abrir en Google Maps]({google_maps_url})",
-                unsafe_allow_html=True,
-            )
 
         else:
             st.info("👆 Seleccione un prestador para visualizar la ruta en el mapa.")
