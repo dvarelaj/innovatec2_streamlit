@@ -180,9 +180,11 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
         Updates `st.session_state` with all entered values and a completion flag.
     """
 
-    # Initialize selected department if not present
+    # Initialize session state variables
     if "selected_departamento" not in st.session_state:
-        st.session_state.selected_departamento = list(DEPARTAMENTOS_CIUDADES.keys())[0]
+        st.session_state.selected_departamento = ""
+    if "ciudad_selected" not in st.session_state:
+        st.session_state.ciudad_selected = ""
 
     # ------------- FORM LAYOUT -------------
     col1, col2 = st.columns(2)
@@ -211,42 +213,68 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
 
     # -------- RIGHT COLUMN --------
     with col2:
-        ## Select departament
-        # If no departament is selected, set the first one by default
-        # If a departament is already selected, keep it
+        ## Select departamento (con opción vacía inicial)
+        all_departamentos = [""] + list(DEPARTAMENTOS_CIUDADES.keys())
+
+        departamento_index = (
+            0
+            if not st.session_state.selected_departamento
+            else all_departamentos.index(st.session_state.selected_departamento)
+        )
+
         departamento = st.selectbox(
-            "Departamento *",
-            options=list(DEPARTAMENTOS_CIUDADES.keys()),
-            index=list(DEPARTAMENTOS_CIUDADES.keys()).index(
-                st.session_state.selected_departamento
-            ),
-            help="Seleccione el departamento",
+            "Departamento",
+            options=all_departamentos,
+            index=departamento_index,
+            help="Seleccione el departamento o déjelo vacío para ver todas las ciudades",
             key="departamento_select",
         )
 
-        # Detect department change and refresh the app to update city options
+        # Detect department change and update session state
         if departamento != st.session_state.selected_departamento:
             st.session_state.selected_departamento = departamento
-            st.session_state.ciudad_selected = ""  # Reset city selection
+            # Si cambia el departamento, resetear la ciudad solo si hay un departamento seleccionado
+            if departamento:
+                st.session_state.ciudad_selected = ""
             st.rerun()
 
-        ciudades_disponibles = DEPARTAMENTOS_CIUDADES[
-            st.session_state.selected_departamento
-        ]
+        ## Select city - mostrar todas las ciudades o filtrar por departamento
+        if st.session_state.selected_departamento:
+            # Si hay departamento seleccionado, mostrar solo ciudades de ese departamento
+            ciudades_disponibles = DEPARTAMENTOS_CIUDADES[
+                st.session_state.selected_departamento
+            ]
+        else:
+            # Si no hay departamento, mostrar TODAS las ciudades
+            ciudades_disponibles = sorted(
+                set(
+                    ciudad
+                    for ciudades in DEPARTAMENTOS_CIUDADES.values()
+                    for ciudad in ciudades
+                )
+            )
 
-        ## Select city
-        # If no city is selected, set the first one by default
-        # If a city is already selected, keep it
+        # Añadir opción vacía al inicio
+        ciudades_con_vacio = [""] + ciudades_disponibles
+
+        ciudad_index = (
+            0
+            if not st.session_state.ciudad_selected
+            or st.session_state.ciudad_selected not in ciudades_disponibles
+            else ciudades_con_vacio.index(st.session_state.ciudad_selected)
+        )
+
         ciudad = st.selectbox(
             "Ciudad/Municipio *",
-            options=ciudades_disponibles,
-            index=0
-            if "ciudad_selected" not in st.session_state
-            or not st.session_state.ciudad_selected
-            else ciudades_disponibles.index(st.session_state.ciudad_selected),
+            options=ciudades_con_vacio,
+            index=ciudad_index,
             help="Seleccione la ciudad o municipio",
-            key="ciudad_selected",
+            key="ciudad_selected_widget",
         )
+
+        # Actualizar session state con la ciudad seleccionada
+        if ciudad != st.session_state.ciudad_selected:
+            st.session_state.ciudad_selected = ciudad
 
     # ------------- FORM RESPONSE -------------
     if st.session_state.get("form_inicio_completed", False):
@@ -273,6 +301,10 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
             st.error("⚠️ Por favor ingrese el número de documento")
         elif not numero_limpio.isalnum():
             st.error("⚠️ El número de documento contiene caracteres no válidos")
+        elif not ciudad:
+            st.error("⚠️ Por favor seleccione una ciudad o municipio")
+        elif not sexo:
+            st.error("⚠️ Por favor seleccione el sexo biológico")
         else:
             # Format document abbreviation (e.g., CC-12345)
             tipo_doc_abrev = (
@@ -284,8 +316,8 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
                 f"{tipo_doc_abrev}-{numero_documento}"
             )
 
-            # Persist selections
-            st.session_state.departamento = departamento
+            # Persist selections (si no hay departamento, guardarlo como vacío)
+            st.session_state.departamento = departamento if departamento else ""
             st.session_state.ciudad = ciudad
 
             # Simulate database check
@@ -463,3 +495,191 @@ def symptoms_form(
         st.rerun()
 
         return False
+
+
+def display_triage_result():
+    """
+    Display the triage result panel in the Streamlit UI.
+
+    This function renders a collapsible section summarizing the triage decision,
+    including the classification (triage level, modality, and severity),
+    the recommended medical specialty, and next steps for the user.
+
+    It reads data directly from Streamlit's session state:
+        - decision_triage
+        - decision
+        - decision_modalidad
+        - decision_especialidad
+
+    The visual presentation adapts color, icon, and message
+    depending on the triage level (T1–T5).
+
+    Example
+    -------
+    >>> display_triage_result()
+    """
+
+    with st.expander("ℹ️ Resultado del Triage", expanded=False):
+        # --- Layout: Two columns ---
+        cols = st.columns([4, 1, 4])
+
+        # ===========================
+        # 🔹 Column 1: Classification
+        # ===========================
+        with cols[0]:
+            st.markdown("#### Clasificación")
+
+            # Retrieve triage info from session state
+            nivel = st.session_state.get("decision_triage", "N/A")
+            decision = st.session_state.get("decision", "N/A")
+
+            # Define color and icon by severity level
+            if nivel in ["T1", "T2"]:
+                color = "#D32F2F"  # Red - Emergency
+                emoji = "🚨"
+            elif nivel == "T3":
+                color = "#F57C00"  # Orange - Urgent
+                emoji = "⚠️"
+            elif nivel == "T4":
+                color = "#FBC02D"  # Yellow - Priority
+                emoji = "⏱️"
+            else:  # T5 or undefined
+                color = "#388E3C"  # Green - Regular
+                emoji = "✅"
+
+            # Render colored triage label
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: {color};
+                    color: white;
+                    padding: 15px;
+                    border-radius: 10px;
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 1.2rem;
+                ">
+                    {emoji} Nivel {nivel} - {decision}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Add modality
+            st.markdown("")
+            st.write(
+                f"**Modalidad:** {st.session_state.get('decision_modalidad', 'N/A')}"
+            )
+
+        # ===========================
+        # 🔹 Column 2: Recommendation
+        # ===========================
+        with cols[2]:
+            st.markdown("#### Recomendación")
+            especialidad = st.session_state.get("decision_especialidad", "N/A")
+            if especialidad != "N/A":
+                especialidad = especialidad.replace("_", " ").capitalize()
+            st.write(f"**Especialidad requerida:** {especialidad}")
+            st.markdown("")
+
+            # Display contextual guidance message
+            if nivel in ["T1", "T2"]:
+                st.error(
+                    "⚠️ **Atención inmediata requerida**\n\n"
+                    "Diríjase a la sala de urgencias más cercana o llame al ***."
+                )
+            elif nivel == "T3":
+                st.warning(
+                    "📍 **Atención urgente**\n\n"
+                    "Debe acudir a urgencias lo antes posible."
+                )
+            elif nivel == "T4":
+                st.info(
+                    "📅 **Cita prioritaria**\n\n"
+                    "Se recomienda agendar una cita médica prioritaria (<48 horas)."
+                )
+            else:  # T5
+                st.success(
+                    "📆 **Cita programada**\n\n"
+                    "Puede agendar una cita médica de manera regular por nuestro sistema."
+                )
+
+        # ===========================
+        # 🔹 Footer: Next Steps
+        # ===========================
+        st.markdown("---")
+        st.markdown("#### 📍 Próximos pasos")
+        st.write(
+            "1. Complete la información de su ubicación en la siguiente pestaña\n"
+            "2. Obtenga recomendaciones de prestadores cercanos"
+        )
+
+
+###################
+# RECOMMENDATION UI BLOCKS #
+###################
+
+
+def options_navigation_recomendacion(
+    current_tab: str,
+    PRIMARY_BLUE: str = PRIMARY_BLUE,
+    LIGHT_BLUE: str = LIGHT_BLUE,
+    DARK_GRAY: str = DARK_GRAY,
+    WHITE: str = WHITE,
+) -> str:
+    """
+    Create a horizontal navigation bar for 'Resumen' and 'Ruta' using `streamlit-option-menu`.
+
+    Parameters
+    ----------
+    current_tab : str
+        The currently active tab name (should be either "Resumen" or "Ruta").
+    PRIMARY_BLUE : str, optional
+        Main corporate blue used for selected tab background and borders.
+    LIGHT_BLUE : str, optional
+        Lighter blue used for hover effects.
+    DARK_GRAY : str, optional
+        Text color for unselected tabs.
+    WHITE : str, optional
+        Background color for the navigation container.
+
+    Returns
+    -------
+    str
+        The name of the selected option ("Resumen" or "Ruta").
+    """
+
+    options = ["Resumen", "Ruta"]
+    icons = ["list-ul", "map"]
+
+    selected = option_menu(
+        menu_title=None,
+        options=options,
+        icons=icons,
+        orientation="horizontal",
+        default_index=options.index(current_tab),
+        styles={
+            "container": {
+                "padding": "0!important",
+                "background-color": WHITE,
+                "border-bottom": f"2px solid {PRIMARY_BLUE}",
+            },
+            "icon": {"color": PRIMARY_BLUE, "font-size": "18px"},
+            "nav-link": {
+                "font-size": "16px",
+                "font-weight": "500",
+                "text-align": "center",
+                "margin": "0px",
+                "color": DARK_GRAY,
+                "--hover-color": LIGHT_BLUE,
+                "border-radius": "4px",
+            },
+            "nav-link-selected": {
+                "background-color": LIGHT_BLUE,
+                "color": DARK_GRAY,
+                "border-radius": "4px",
+            },
+        },
+    )
+
+    return selected

@@ -112,7 +112,7 @@ def map_triage_locate(
     folium.TileLayer(
         "OpenStreetMap",
         name="Mapa base #1",
-        show=False,
+        show=True,
     ).add_to(m)
 
     # folium.TileLayer(
@@ -126,7 +126,7 @@ def map_triage_locate(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
         attr="Tiles © Esri — Source: Esri, DeLorme, NAVTEQ, USGS, and others",
         name="Mapa base #2",
-        show=True,
+        show=False,
     ).add_to(m)
 
     folium.TileLayer(

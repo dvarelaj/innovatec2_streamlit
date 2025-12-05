@@ -17,6 +17,8 @@ from utils.input_data.providers_utils import (
     merge_provider_locations,
 )
 
+from utils.general_utils import text_cleaning
+
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def load_and_prepare_provider_data(
@@ -57,7 +59,7 @@ def load_and_prepare_provider_data(
     return prestadores_final
 
 
-@st.cache_data(show_spinner=True, ttl=3600)
+@st.cache_data(show_spinner=False, ttl=3600)
 def build_triage_correspondence_table(
     path_triage: str = "data/triage_sintomas.xlsx",
     path_prestadores: str = "data/prestadores_mapa.xlsx",
@@ -211,21 +213,38 @@ def filter_providers_by_service_and_location(
     pd.DataFrame
         Filtered and sorted provider dataset.
     """
+    # Normalize and title the user location inputs
+    departamento = departamento.title()
+    municipio = municipio.title()
+
     # Load and prepare provider data
     prestadores_final = load_and_prepare_provider_data(
         path_prestadores, path_prestadores_urg
     )
+
+    # st.error(f"Total providers available: {len(prestadores_final)}")
+    # st.warning(prestadores_final["departamento"].unique())
+    # st.warning(
+    #     prestadores_final[prestadores_final["departamento"] == "Bogota D.C."][
+    #         "municipio"
+    #     ].unique()
+    # )
 
     # Filter by service
     filtered = prestadores_final[
         prestadores_final["servicio_prestador"].isin(servicios)
     ].copy()
 
+    # st.error(f"Providers after service filter: {len(filtered)}")
+
     # Filter by location (department and municipality)
     filtered = filtered[
         (filtered["departamento"].str.lower() == departamento.lower())
         & (filtered["municipio"].str.lower() == municipio.lower())
     ]
+
+    # st.warning(f"Filtering providers in {municipio}, {departamento}")
+    # st.error(f"Providers after location filter: {len(filtered)}")
 
     # Calculate distances if user location provided
     if user_location and len(filtered) > 0:
@@ -251,9 +270,9 @@ def filter_providers_by_service_and_location(
         # Filter by distance
         filtered = filtered[filtered["distancia_km"] <= max_distance_km]
 
-        # Sort by distance first, then by priority
+        # Sort by priority first, then by distance
         filtered = filtered.sort_values(
-            by=["distancia_km", "prioridad_recomendacion"], ascending=[True, True]
+            by=["prioridad_recomendacion", "distancia_km"], ascending=[True, True]
         )
     else:
         # Sort by priority only

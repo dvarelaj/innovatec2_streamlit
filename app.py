@@ -8,21 +8,20 @@ from utils.ui_blocks import (
     options_navigation_horizontal,
     identification_form,
     symptoms_form,
+    display_triage_result,
 )
 from utils.input_data.triage_symptoms import get_triage_decision
 from utils.ui_maps import map_triage_locate
-from utils.ui_data import ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES
+from utils.ui_data import (
+    ID_TYPES,
+    SEXO_OPTIONS,
+    get_departamentos_ciudades_from_providers,
+)
 from utils.ui_geocode import (
     # get_coordinates_co,
     # reverse_geocode,
     geocode_address_arcgis,
     reverse_geocode_arcgis,
-)
-from utils.recommendation_engine import (
-    build_triage_correspondence_table,
-    get_recommended_services,
-    filter_providers_by_service_and_location,
-    load_and_prepare_provider_data,
 )
 
 
@@ -114,6 +113,10 @@ selected = options_navigation_horizontal(
 # Actualiza la pestaña actual al hacer clic
 st.session_state.current_tab_triage = selected
 
+# Cargar ubicaciones dinámicamente desde datos de proveedores
+with st.spinner("🔄 Cargando directorio de proveedores"):
+    DEPARTAMENTOS_CIUDADES = get_departamentos_ciudades_from_providers()
+
 if selected == "Inicio":
     # --------------------------
     ## Sección de inicio y formulario de identificación del usuario
@@ -162,13 +165,17 @@ elif selected == "Formulario":
                 elif st.session_state.decision_triage == "T5":
                     st.session_state.decision = "Cita Programada"
 
-            # NOTE: Agregar separador y mensaje informativo en base a triage, modalidad y especialidad
+            # ------------
+            # Mostrar información del resultado del triage
+            display_triage_result()
 
             st.markdown("---")
 
-            st.info(
-                "**A continuación, especifique su ubicación exacta para completar el triage.**"
-            )
+            if st.session_state.get("form_symptoms_completed", False):
+                st.success(
+                    "✅ **Síntomas registrados correctamente.** "
+                    "A continuación, especifique su ubicación exacta para completar el triage."
+                )
 
         else:
             if all(
@@ -343,6 +350,17 @@ elif selected == "Mapa ubicación":
             # Checkbox para confirmar la ubicación
             col_center = st.columns([3, 4, 3])[1]
             with col_center:
+                st.markdown(
+                    """
+                    <style>
+                    div[data-testid="stCheckbox"] label p {
+                        font-size: 1.1rem !important;
+                        font-weight: 600 !important;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
                 location_confirmed = st.checkbox(
                     "¿Está de acuerdo con esta ubicación?",
                     key="location_confirmation_checkbox",
@@ -375,163 +393,14 @@ elif selected == "Mapa ubicación":
             with arrow_cols[2]:
                 if st.button("Seguir a Recomendación →", use_container_width=True):
                     st.session_state.recommendation_step = True
-                    st.rerun()
+                    st.switch_page("pages/2_recomendacion.py")
 
         if st.session_state.get("triage_completed", False):
-            st.success("✅ El formulario de triage ha sido completado con éxito.")
-
-        # ========================================================================
-        # SECCIÓN DE RECOMENDACIÓN DE PRESTADORES
-        # ========================================================================
-        if st.session_state.get("recommendation_step", False):
-            st.markdown("---")
-            st.markdown("### 🏥 Recomendación de Prestadores")
-
-            # Extract user data from session state
-            nivel_triage = st.session_state.get("decision_triage")
-            especialidad = st.session_state.get("decision_especialidad", "")
-            user_dept = st.session_state.get("departamento", "")
-            user_city = st.session_state.get("ciudad", "")
-            user_location = st.session_state.get("ubicacion_usuario")
-
-            # Validate required data
-            if not all([nivel_triage, user_dept, user_city]):
-                st.error(
-                    "⚠️ Faltan datos del triage. Por favor complete todos los pasos."
-                )
-            else:
-                # Build correspondence table (cached)
-                with st.spinner("🔄 Cargando sistema de recomendación..."):
-                    try:
-                        df_correspondencia = build_triage_correspondence_table(
-                            threshold=0.7, top_k=3, method="semantic"
-                        )
-
-                        # Get recommended services for user's triage result
-                        recomendacion = get_recommended_services(
-                            nivel_triage=nivel_triage,
-                            especialidad=especialidad,
-                            df_correspondencia=df_correspondencia,
-                        )
-
-                        servicios_recomendados = recomendacion["servicios"]
-                        scores = recomendacion["scores"]
-                        tipo_match = recomendacion["tipo"]
-
-                        # Load provider data
-                        df_prestadores = load_and_prepare_provider_data()
-
-                        # Filter providers by service and location
-                        providers_filtered = filter_providers_by_service_and_location(
-                            df_prestadores=df_prestadores,
-                            servicios=servicios_recomendados,
-                            departamento=user_dept,
-                            municipio=user_city,
-                            user_location=user_location,
-                            max_distance_km=50.0,
-                        )
-
-                        # Store in session state
-                        st.session_state.recommended_providers = providers_filtered
-
-                        # Display results
-                        if len(providers_filtered) > 0:
-                            st.success(
-                                f"✅ Se encontraron {len(providers_filtered)} prestadores recomendados"
-                            )
-
-                            # Show matching info
-                            with st.expander(
-                                "ℹ️ Información de coincidencia", expanded=False
-                            ):
-                                st.write(f"**Nivel de triage:** {nivel_triage}")
-                                st.write(f"**Especialidad requerida:** {especialidad}")
-                                st.write(
-                                    f"**Servicios sugeridos:** {', '.join(servicios_recomendados)}"
-                                )
-                                st.write(f"**Tipo de coincidencia:** {tipo_match}")
-                                if scores:
-                                    st.write(
-                                        f"**Confianza:** {', '.join([f'{s:.2f}' for s in scores])}"
-                                    )
-
-                            # Display top 5 providers
-                            st.markdown("#### 📍 Prestadores Recomendados")
-
-                            for idx, row in providers_filtered.head(5).iterrows():
-                                with st.container():
-                                    col1, col2 = st.columns([3, 1])
-
-                                    with col1:
-                                        st.markdown(f"**{row['prestador']}**")
-                                        st.caption(f"📌 {row['direccion']}")
-                                        st.caption(
-                                            f"🏥 Servicio: {row['servicio_prestador']}"
-                                        )
-
-                                        if (
-                                            "distancia_km" in row
-                                            and row["distancia_km"] is not None
-                                        ):
-                                            st.caption(
-                                                f"📏 Distancia: {row['distancia_km']:.2f} km"
-                                            )
-
-                                    with col2:
-                                        priority = row.get(
-                                            "prioridad_recomendacion", "N/A"
-                                        )
-                                        st.metric("Prioridad", f"#{priority}")
-
-                                    st.markdown("---")
-
-                            # Show full table
-                            with st.expander("📊 Ver tabla completa", expanded=False):
-                                display_cols = [
-                                    "prestador",
-                                    "servicio_prestador",
-                                    "direccion",
-                                    "telefono",
-                                ]
-                                if "distancia_km" in providers_filtered.columns:
-                                    display_cols.append("distancia_km")
-                                display_cols.append("prioridad_recomendacion")
-
-                                st.dataframe(
-                                    providers_filtered[display_cols].head(20),
-                                    use_container_width=True,
-                                )
-                        else:
-                            st.warning(
-                                f"⚠️ No se encontraron prestadores en {user_city}, {user_dept} "
-                                f"para los servicios recomendados: {', '.join(servicios_recomendados)}"
-                            )
-                            st.info(
-                                "💡 Intenta ampliar el radio de búsqueda o considera prestadores en ciudades cercanas."
-                            )
-
-                    except Exception as e:
-                        st.error(f"❌ Error al generar recomendaciones: {str(e)}")
-                        st.exception(e)
+            st.info(
+                "✅ **El formulario de triage ha sido completado con éxito.** Haga clic en 'Seguir a Recomendación' para ver los prestadores sugeridos."
+            )
 
     else:
         st.warning(
             "⚠️ Por favor complete primero la sección de Identificación del Usuario."
         )
-
-st.markdown("___")
-
-# st.markdown(
-#     """
-# <div style="
-#     background-color:#e8f5e9;
-#     padding:15px;
-#     border-radius:10px;
-#     border:1px solid #a5d6a7;
-#     text-align:center;">
-#     <h3 style='color:#2e7d32;'>✅ Recomendación</h3>
-#     <p>El centro médico <b>Clínica del Norte</b> está a solo <b>2.1 km</b>.</p>
-# </div>
-# """,
-#     unsafe_allow_html=True,
-# )
