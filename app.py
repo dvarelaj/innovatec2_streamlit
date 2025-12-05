@@ -315,16 +315,16 @@ elif selected == "Mapa ubicación":
                     )
 
                     # -----------
-            # Detectar nuevos clics y actualizar el marcador
-            if map_output and map_output["last_clicked"]:
-                new_location = map_output["last_clicked"]
-                # Comprueba si se trata de un clic NUEVO (diferente de la ubicación almacenada anteriormente).
-                last_processed = st.session_state.get("last_processed_click")
-                if last_processed != new_location:
-                    # Este es un nuevo clic - procesarlo
-                    st.session_state["ubicacion_usuario"] = new_location
-                    st.session_state["last_processed_click"] = new_location
-                    st.rerun()  # Volver a ejecutar la app para actualizar el marcador
+                # Detectar nuevos clics y actualizar el marcador
+                if map_output and map_output["last_clicked"]:
+                    new_location = map_output["last_clicked"]
+                    # Comprueba si se trata de un clic NUEVO (diferente de la ubicación almacenada anteriormente).
+                    last_processed = st.session_state.get("last_processed_click")
+                    if last_processed != new_location:
+                        # Este es un nuevo clic - procesarlo
+                        st.session_state["ubicacion_usuario"] = new_location
+                        st.session_state["last_processed_click"] = new_location
+                        st.rerun()  # Volver a ejecutar la app para actualizar el marcador
 
         # ------------
         ## Obtener la direccion a partir de la latitud y longitud del usuario

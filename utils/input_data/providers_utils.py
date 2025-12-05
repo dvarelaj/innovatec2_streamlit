@@ -7,6 +7,13 @@ from typing import List, Optional
 from utils.general_utils import text_cleaning
 import streamlit as st
 
+PROVIDERS_GENERAL_PATH = (
+    "https://docs.google.com/uc?export=download&id=1U87jmsTC5KUq-_zugFNFrRvu7HD0RE8Q"
+)
+PROVIDERS_URG_PATH = (
+    "https://docs.google.com/uc?export=download&id=1XNZRTafStxxSAqcN1u1LIBBCbKY_dZM2"
+)
+
 
 @st.cache_data(show_spinner=False)
 def clean_providers_data(

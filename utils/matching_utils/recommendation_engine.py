@@ -8,11 +8,16 @@ based on user triage results and location.
 import pandas as pd
 import streamlit as st
 from typing import Optional, Dict, List
-from utils.input_data.triage_symptoms import build_triage_combinations
+from utils.input_data.triage_symptoms import (
+    SYMPTOMS_DATA_PATH,
+    build_triage_combinations,
+)
 from utils.matching_utils.triage_matching import (
     build_correspondence_table,
 )
 from utils.input_data.providers_utils import (
+    PROVIDERS_GENERAL_PATH,
+    PROVIDERS_URG_PATH,
     clean_providers_data,
     merge_provider_locations,
 )
@@ -22,8 +27,8 @@ from utils.general_utils import text_cleaning
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def load_and_prepare_provider_data(
-    path_prestadores: str = "data/prestadores_mapa.xlsx",
-    path_prestadores_urg: str = "data/prestadores_urg.xlsx",
+    path_prestadores: str = PROVIDERS_GENERAL_PATH,
+    path_prestadores_urg: str = PROVIDERS_URG_PATH,
 ) -> pd.DataFrame:
     """
     Load, clean, and merge provider datasets.
@@ -61,9 +66,9 @@ def load_and_prepare_provider_data(
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def build_triage_correspondence_table(
-    path_triage: str = "data/triage_sintomas.xlsx",
-    path_prestadores: str = "data/prestadores_mapa.xlsx",
-    path_prestadores_urg: str = "data/prestadores_urg.xlsx",
+    path_triage: str = SYMPTOMS_DATA_PATH,
+    path_prestadores: str = PROVIDERS_GENERAL_PATH,
+    path_prestadores_urg: str = PROVIDERS_URG_PATH,
     threshold: float = 0.7,
     top_k: int = 3,
     method: str = "semantic",
@@ -184,8 +189,8 @@ def filter_providers_by_service_and_location(
     servicios: List[str],
     departamento: str,
     municipio: str,
-    path_prestadores: str = "data/prestadores_mapa.xlsx",
-    path_prestadores_urg: str = "data/prestadores_urg.xlsx",
+    path_prestadores: str = PROVIDERS_GENERAL_PATH,
+    path_prestadores_urg: str = PROVIDERS_URG_PATH,
     user_location: Optional[Dict] = None,
     max_distance_km: float = 100.0,
 ) -> pd.DataFrame:

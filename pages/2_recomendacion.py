@@ -161,7 +161,7 @@ if selected_tab == "Resumen":
                     )
                     if "distancia_km" in row and row["distancia_km"] is not None:
                         st.caption(f"📏 Distancia: {row['distancia_km']:.2f} km")
-                    st.caption(f"temp: {row.get('prioridad_recomendacion', 'N/A')}")
+                    # st.caption(f"temp: {row.get('prioridad_recomendacion', 'N/A')}")
 
                 with col2:
                     if st.button(
@@ -408,4 +408,21 @@ with col_back:
         st.session_state.recommendation_data_loaded = False
         st.session_state.selected_provider_for_route = None
         st.session_state.current_tab_triage = "Mapa ubicación"
+        st.switch_page("app.py")
+
+# -------------------------------------------------------------------------
+## Botón para reiniciar la aplicación
+
+st.markdown("___")
+
+col_back, col_new_user, _ = st.columns([2, 4, 2])
+
+with col_new_user:
+    if st.button("🔄 Nuevo Usuario", use_container_width=True):
+        # Reset all session state variables
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        # Navigate to the first page and tab
+        st.session_state.current_tab_triage = "Inicio"
+        st.rerun()
         st.switch_page("app.py")

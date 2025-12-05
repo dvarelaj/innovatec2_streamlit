@@ -7,7 +7,11 @@ from utils.general_utils import text_cleaning
 import numpy as np
 
 # Default path to the triage symptoms Excel file
-DEFAULT_EXCEL_PATH = "data/triage_sintomas.xlsx"
+SYMPTOMS_DATA_PATH = (
+    "https://docs.google.com/uc?export=download&id=1igDMY2IXf8Vfogttwo3ueiHOUkYg4cM6"
+)
+DEFAULT_EXCEL_PATH = SYMPTOMS_DATA_PATH
+
 
 # Global variable to store the loaded data
 _SINTOMAS_TRIAGE: Optional[Dict[str, Dict[str, List[str]]]] = None
@@ -63,8 +67,8 @@ def load_sintomas_from_excel(
     """
     global _SINTOMAS_TRIAGE
 
-    # Check if file exists
-    if not os.path.exists(excel_path):
+    # Check if file exists (only for local files)
+    if not excel_path.startswith("http") and not os.path.exists(excel_path):
         raise FileNotFoundError(f"Excel file not found: {excel_path}")
 
     try:
@@ -410,8 +414,8 @@ def get_triage_decision(
     >>> print(decision)
     None
     """
-    # Check if file exists
-    if not os.path.exists(excel_path):
+    # Check if file exists (only for local files)
+    if not excel_path.startswith("http") and not os.path.exists(excel_path):
         print(f"Error: Excel file not found at {excel_path}")
         return None
 
