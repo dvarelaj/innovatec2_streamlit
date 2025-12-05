@@ -3,16 +3,31 @@ Data cleaning utilities for healthcare provider datasets.
 """
 
 import pandas as pd
+import os
 from typing import List, Optional
 from utils.general_utils import text_cleaning
 import streamlit as st
 
-PROVIDERS_GENERAL_PATH = (
+LOCAL_PROVIDERS_GENERAL_PATH = "data/prestadores_mapa.xlsx"
+LOCAL_PROVIDERS_URG_PATH = "data/prestadores_urg.xlsx"
+
+REMOTE_PROVIDERS_GENERAL_PATH = (
     "https://docs.google.com/uc?export=download&id=1U87jmsTC5KUq-_zugFNFrRvu7HD0RE8Q"
 )
-PROVIDERS_URG_PATH = (
+REMOTE_PROVIDERS_URG_PATH = (
     "https://docs.google.com/uc?export=download&id=1XNZRTafStxxSAqcN1u1LIBBCbKY_dZM2"
 )
+
+# Determine paths based on local file existence
+if os.path.exists(LOCAL_PROVIDERS_GENERAL_PATH):
+    PROVIDERS_GENERAL_PATH = LOCAL_PROVIDERS_GENERAL_PATH
+else:
+    PROVIDERS_GENERAL_PATH = REMOTE_PROVIDERS_GENERAL_PATH
+
+if os.path.exists(LOCAL_PROVIDERS_URG_PATH):
+    PROVIDERS_URG_PATH = LOCAL_PROVIDERS_URG_PATH
+else:
+    PROVIDERS_URG_PATH = REMOTE_PROVIDERS_URG_PATH
 
 
 @st.cache_data(show_spinner=False)

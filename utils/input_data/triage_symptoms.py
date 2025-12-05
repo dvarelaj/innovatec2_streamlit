@@ -7,9 +7,17 @@ from utils.general_utils import text_cleaning
 import numpy as np
 
 # Default path to the triage symptoms Excel file
-SYMPTOMS_DATA_PATH = (
+LOCAL_SYMPTOMS_PATH = "data/triage_sintomas.xlsx"
+REMOTE_SYMPTOMS_PATH = (
     "https://docs.google.com/uc?export=download&id=1igDMY2IXf8Vfogttwo3ueiHOUkYg4cM6"
 )
+
+# Determine which path to use
+if os.path.exists(LOCAL_SYMPTOMS_PATH):
+    SYMPTOMS_DATA_PATH = LOCAL_SYMPTOMS_PATH
+else:
+    SYMPTOMS_DATA_PATH = REMOTE_SYMPTOMS_PATH
+
 DEFAULT_EXCEL_PATH = SYMPTOMS_DATA_PATH
 
 
