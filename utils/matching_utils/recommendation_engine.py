@@ -243,8 +243,8 @@ def filter_providers_by_service_and_location(
         & (filtered["municipio"].str.lower() == municipio.lower())
     ]
 
-    st.warning(f"Filtering providers in {municipio}, {departamento}")
-    st.error(f"Providers after location filter: {len(filtered)}")
+    # st.warning(f"Filtering providers in {municipio}, {departamento}")
+    # st.error(f"Providers after location filter: {len(filtered)}")
 
     # Calculate distances if user location provided
     if user_location and len(filtered) > 0:
