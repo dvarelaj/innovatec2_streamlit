@@ -214,8 +214,8 @@ def filter_providers_by_service_and_location(
         Filtered and sorted provider dataset.
     """
     # Normalize and title the user location inputs
-    departamento = text_cleaning(departamento).title()
-    municipio = text_cleaning(municipio).title()
+    departamento = departamento.title()
+    municipio = municipio.title()
 
     # Load and prepare provider data
     prestadores_final = load_and_prepare_provider_data(
@@ -223,8 +223,9 @@ def filter_providers_by_service_and_location(
     )
 
     # st.error(f"Total providers available: {len(prestadores_final)}")
+    # st.warning(prestadores_final["departamento"].unique())
     # st.warning(
-    #     prestadores_final[prestadores_final["departamento"] == "Antioquia"][
+    #     prestadores_final[prestadores_final["departamento"] == "Bogota D.C."][
     #         "municipio"
     #     ].unique()
     # )
@@ -242,8 +243,8 @@ def filter_providers_by_service_and_location(
         & (filtered["municipio"].str.lower() == municipio.lower())
     ]
 
-    # st.warning(f"Filtering providers in {municipio}, {departamento}")
-    # st.error(f"Providers after location filter: {len(filtered)}")
+    st.warning(f"Filtering providers in {municipio}, {departamento}")
+    st.error(f"Providers after location filter: {len(filtered)}")
 
     # Calculate distances if user location provided
     if user_location and len(filtered) > 0:
