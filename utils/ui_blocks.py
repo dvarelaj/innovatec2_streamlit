@@ -328,173 +328,130 @@ def identification_form(ID_TYPES, SEXO_OPTIONS, DEPARTAMENTOS_CIUDADES):
             st.rerun()
 
 
-def symptoms_form(
-    get_categorias=get_categorias,
-    get_sintomas=get_sintomas,
-    get_modificadores=get_modificadores,
-    validate_selection=validate_selection,
-):
+def symptoms_form():
     """
-    Render the triage symptom selection form in Streamlit.
-
-    This form guides the user through a 3-step symptom identification process:
-    - Selecting the body area (category)
-    - Selecting the specific symptom within that category
-    - Selecting a symptom modifier (if applicable)
-
-    All selections are stored in `st.session_state`. The function also validates
-    the final combination of category, symptom, and modifier using the provided
-    `validate_selection()` function.
-
-    Parameters
-    ----------
-    get_categorias : function
-        A function that returns a list of available body categories.
-    get_sintomas : function
-        A function that receives a category and returns a list of symptoms related to it.
-    get_modificadores : function
-        A function that receives (category, symptom) and returns a list of possible modifiers.
-    validate_selection : function
-        A function that receives (category, symptom, modifier) and returns True if
-        the combination is valid, otherwise False.
-
-    Returns
-    -------
-    bool
-        True if a valid combination of category, symptom, and modifier is selected.
-        False otherwise.
+    Formulario de síntomas con MedGemma.
+    Reemplaza los 3 dropdowns del árbol de decisión (v1) por un campo
+    de texto libre analizado por MedGemma.
     """
+    from utils.matching_utils.medgemma_triage import get_triage_medgemma
 
-    try:
-        # ---------  CATEGORIES ----------------
-        categorias = get_categorias()
+    st.markdown(
+        """
+        <div style="
+            background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+            border-left: 4px solid #43a047;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 18px;
+        ">
+        <b>🤖 Triage asistido por MedGemma</b><br>
+        <span style="font-size:0.9rem">
+        Describa sus síntomas con sus propias palabras. El modelo médico
+        MedGemma analizará su descripción y determinará el nivel de triage.
+        </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        # Determine index dynamically to preserve user's previous selection
-        categoria_index = (
-            0
-            if not st.session_state.get("selected_categoria")
-            else categorias.index(st.session_state.selected_categoria) + 1
-        )
+    descripcion = st.text_area(
+        "Describa sus síntomas actuales:",
+        placeholder=(
+            "Ejemplo: Tengo dolor en el pecho desde hace 2 horas, "
+            "me falta el aire cuando camino y siento palpitaciones. "
+            "También tengo el brazo izquierdo dormido."
+        ),
+        height=140,
+        key="descripcion_sintomas",
+        help="Sea lo más específico posible: dónde duele, desde cuándo, qué tan intenso.",
+    )
 
-        categoria = st.selectbox(
-            "1️⃣ ¿En qué área del cuerpo se presenta el síntoma? *",
-            options=["Seleccione una opción..."] + categorias,
-            index=categoria_index,
-            help="Seleccione la categoría que mejor describe el área afectada",
-            key="categoria_select",
-        )
+    st.caption(
+        "💡 Incluya: localización del síntoma, tiempo de evolución, "
+        "intensidad (1-10) y síntomas acompañantes."
+    )
 
-        # Update the selected category in session_state
-        if categoria != "Seleccione una opción...":
-            st.session_state.selected_categoria = categoria
-        else:
-            # Reset downstream selections if user resets category
-            st.session_state.selected_categoria = None
-            st.session_state.selected_sintoma = None
-            st.session_state.selected_modificador = None
+    analizar = st.button(
+        "🔬 Analizar síntomas con MedGemma",
+        use_container_width=True,
+        type="primary",
+    )
 
-        # ------------  SYMPTOMS --------------
-        # Select Symptom (only shown if category is selected)
-        if st.session_state.selected_categoria:
-            sintomas = get_sintomas(st.session_state.selected_categoria)
+    if analizar:
+        if not descripcion or len(descripcion.strip()) < 20:
+            st.warning(
+                "⚠️ Por favor describa sus síntomas con más detalle "
+                "(mínimo 20 caracteres)."
+            )
+            return False
 
-            # Determine index dynamically to preserve user's previous selection
-            sintoma_index = (
-                0
-                if not st.session_state.get("selected_sintoma")
-                else sintomas.index(st.session_state.selected_sintoma) + 1
+        hf_token = st.secrets.get("HF_TOKEN", "")
+        if not hf_token:
+            st.error(
+                "❌ Token de HuggingFace no configurado. "
+                "Verifique el archivo .streamlit/secrets.toml"
+            )
+            return False
+
+        with st.spinner("🧠 MedGemma analizando síntomas..."):
+            resultado = get_triage_medgemma(
+                descripcion_sintomas=descripcion,
+                hf_token=hf_token,
             )
 
-            sintoma = st.selectbox(
-                "2️⃣ ¿Cuál de los siguientes síntomas te identifica mejor? *",
-                options=["Seleccione una opción..."] + sintomas,
-                index=sintoma_index,
-                help="Seleccione el síntoma específico que presenta",
-                key="sintoma_select",
+        st.session_state["decision_triage"] = resultado["triage"]
+        st.session_state["decision_modalidad"] = resultado["modalidad"]
+        st.session_state["decision_especialidad"] = resultado["especialidad"]
+        st.session_state["selected_categoria"] = resultado["especialidad"]
+        st.session_state["selected_sintoma"] = descripcion[:50]
+        st.session_state["selected_modificador"] = "medgemma"
+        st.session_state["form_symptoms_completed"] = True
+
+        if resultado["exito"]:
+            nivel = resultado["triage"]
+            color_map = {
+                "T1": "#d32f2f", "T2": "#e64a19",
+                "T3": "#f57c00", "T4": "#388e3c", "T5": "#1976d2",
+            }
+            color = color_map.get(nivel, "#757575")
+
+            st.markdown(
+                f"""
+                <div style="
+                    border: 2px solid {color};
+                    border-radius: 10px;
+                    padding: 16px;
+                    margin-top: 12px;
+                ">
+                <h4 style="color:{color}; margin:0">
+                    Nivel {nivel} — {resultado['modalidad']}
+                </h4>
+                <p style="margin: 8px 0 4px">
+                    <b>Especialidad:</b> {resultado['especialidad'].replace('_', ' ').title()}
+                </p>
+                <p style="margin: 4px 0; font-size: 0.9rem; color: #555">
+                    <b>Razonamiento clínico:</b> {resultado['razonamiento']}
+                </p>
+                """,
+                unsafe_allow_html=True,
             )
 
-            if sintoma != "Seleccione una opción...":
-                st.session_state.selected_sintoma = sintoma
-            else:
-                # Reset next step if symptom is deselected
-                st.session_state.selected_sintoma = None
-                st.session_state.selected_modificador = None
-
-        # ------------  MODIFIERS --------------
-        # Select Modifier (only shown if symptom is selected)
-        if st.session_state.get("selected_sintoma"):
-            modificadores = get_modificadores(
-                st.session_state.selected_categoria, st.session_state.selected_sintoma
-            )
-
-            # Determine index dynamically to preserve user's previous selection
-            modificador_index = (
-                0
-                if not st.session_state.get("selected_modificador")
-                else modificadores.index(st.session_state.selected_modificador) + 1
-            )
-
-            modificador = st.selectbox(
-                "3️⃣ ¿El síntoma está asociado con alguna de estas características? *",
-                options=["Seleccione una opción..."] + modificadores,
-                index=modificador_index,
-                help="Seleccione el modificador que mejor describe su situación",
-                key="modificador_select",
-            )
-
-            if modificador != "Seleccione una opción...":
-                st.session_state.selected_modificador = modificador
-            else:
-                st.session_state.selected_modificador = None
-
-        # ------------  VALIDATION TRIAGE  --------------
-        # Validate full selection
-        if all(
-            [
-                st.session_state.get("selected_categoria"),
-                st.session_state.get("selected_sintoma"),
-                st.session_state.get("selected_modificador"),
-            ]
-        ):
-            is_valid = validate_selection(
-                st.session_state.selected_categoria,
-                st.session_state.selected_sintoma,
-                st.session_state.selected_modificador,
-            )
-
-            if is_valid:
-                st.session_state["form_symptoms_completed"] = True
-
-                # ------------  TRIAGE RESULTS  --------------
-                # Get triage decision
-                triage_decision = get_triage_decision(
-                    st.session_state.selected_categoria,
-                    st.session_state.selected_sintoma,
-                    st.session_state.selected_modificador,
+            if resultado.get("signos_alarma"):
+                st.markdown(
+                    "⚠️ **Signos de alarma identificados:** "
+                    + ", ".join(resultado["signos_alarma"])
                 )
-                st.session_state["decision_triage"] = triage_decision["triage"]
-                st.session_state["decision_modalidad"] = triage_decision["modalidad"]
-                st.session_state["decision_especialidad"] = triage_decision[
-                    "especialidad"
-                ]
 
-                return True
-            else:
-                st.session_state["form_symptoms_completed"] = False
-                return False
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # If not all selections are complete, return False by default
-        return False
+        else:
+            st.warning(
+                f"⚠️ MedGemma no disponible. Se usó clasificación de respaldo. "
+                f"Error: {resultado.get('error', 'desconocido')}"
+            )
 
-    except Exception:
-        # Reset selections on error
-        st.session_state.selected_categoria = None
-        st.session_state.selected_sintoma = None
-        st.session_state.selected_modificador = None
-
-        st.rerun()
-
-        return False
+    return st.session_state.get("form_symptoms_completed", False)
 
 
 def display_triage_result():
