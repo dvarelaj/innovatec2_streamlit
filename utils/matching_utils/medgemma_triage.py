@@ -157,7 +157,7 @@ FORMATO DE RESPUESTA (JSON exacto):
 def get_triage_medgemma(
     descripcion_sintomas: str,
     hf_token: str,
-    model: str = "gemini-2.0-flash",
+    model: str = "gemini-2.0-flash-lite",
 ) -> dict:
     """
     Clasifica accidentes de trabajo usando Gemini + base de conocimiento HADA.
