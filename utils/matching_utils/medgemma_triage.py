@@ -70,7 +70,7 @@ gastroenterologia, neumologia, endocrinologia, traumatologia"""
 def get_triage_medgemma(
     descripcion_sintomas: str,
     hf_token: str,
-    model: str = "google/medgemma-27b-it",
+    model: str = "google/medgemma-4b-it",
 ) -> dict:
     """
     Clasifica síntomas usando MedGemma vía HuggingFace Inference API.
@@ -167,7 +167,7 @@ def get_triage_medgemma(
         if "401" in error_msg or "unauthorized" in error_msg.lower():
             fallback["error"] = (
                 "Token de HuggingFace inválido o sin acceso a MedGemma. "
-                "Verifica que aceptaste los términos en huggingface.co/google/medgemma-27b-it"
+                "Verifica que aceptaste los términos en huggingface.co/google/medgemma-4b-it"
             )
         # Si es error de rate limit
         elif "429" in error_msg or "rate" in error_msg.lower():
