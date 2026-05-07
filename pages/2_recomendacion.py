@@ -299,77 +299,56 @@ elif selected_tab == "Ruta":
 
             # ------
             # Create map
+            # ------
+            # Obtener ruta real con Google Maps Routes API
+            maps_key = st.secrets.get("GOOGLE_MAPS_API_KEY", "")
+
+            from utils.maps_routes import get_route_google_maps
+
+            with st.spinner("🗺️ Calculando ruta real..."):
+                ruta = get_route_google_maps(
+                    origin_lat=user_lat,
+                    origin_lng=user_lng,
+                    dest_lat=provider_lat,
+                    dest_lng=provider_lng,
+                    api_key=maps_key,
+                )
+
+            # Mostrar métricas de la ruta
+            col_d, col_t = st.columns(2)
+            with col_d:
+                st.metric(
+                    "📏 Distancia real",
+                    f"{ruta['distancia_km']} km",
+                    help="Distancia por carretera",
+                )
+            with col_t:
+                st.metric(
+                    "⏱️ Tiempo estimado",
+                    ruta["duracion_texto"],
+                    help="Considerando tráfico actual",
+                )
+
+            if not ruta["exito"]:
+                st.warning(f"⚠️ Ruta aproximada. {ruta.get('error', '')}")
+
+            # Crear mapa centrado entre usuario y prestador
             m = folium.Map(
                 location=[center_lat, center_lng],
                 zoom_start=13,
                 tiles="OpenStreetMap",
             )
 
-            # Add user marker (blue)
-            folium.Marker(
-                location=[user_lat, user_lng],
-                popup="Tu ubicación",
-                tooltip=st.session_state.get("cached_address", "N/A"),
-                icon=folium.Icon(color="green", icon="user", prefix="fa"),
-            ).add_to(m)
-
-            # Add provider marker (red)
-            folium.Marker(
-                location=[provider_lat, provider_lng],
-                popup=f"<b>{selected_row['prestador']}</b><br>{selected_row['direccion']}",
-                tooltip=selected_row["prestador"],
-                icon=folium.Icon(color="red", icon="hospital", prefix="fa"),
-            ).add_to(m)
-
-            # Add line between user and provider
+            # Dibujar la ruta real (polilínea decodificada de Google)
             folium.PolyLine(
-                locations=[[user_lat, user_lng], [provider_lat, provider_lng]],
-                color="blue",
-                weight=3,
-                opacity=0.7,
-                popup="Ruta estimada",
+                locations=ruta["coords"],
+                color="#1976D2",
+                weight=5,
+                opacity=0.8,
+                tooltip=f"Ruta: {ruta['distancia_km']} km · {ruta['duracion_texto']}",
             ).add_to(m)
 
-            # Add distance marker at midpoint
-            if (
-                "distancia_km" in selected_row
-                and selected_row["distancia_km"] is not None
-            ):
-                folium.Marker(
-                    location=[center_lat, center_lng],
-                    icon=folium.DivIcon(
-                        html=f"""
-                        <div style="
-                            background-color: white;
-                            border: 2px solid #1976D2;
-                            border-radius: 6px;
-                            padding: 6px 75px 6px 4px;
-                            font-weight: bold;
-                            color: #1976D2;
-                            text-align: center;
-                            font-size: 12px;
-                            transform: translate(-50%, -50%);
-                            position: relative;
-                            white-space: nowrap;
-                            box-shadow: 0 0 4px rgba(0,0,0,0.2);
-                        ">
-                            📏 {selected_row["distancia_km"]:.2f} km
-                        </div>
-                        """,
-                        icon_anchor=(
-                            0,
-                            0,
-                        ),  # anchor top-left, but CSS translate recenters it
-                    ),
-                ).add_to(m)
-
-            # Fit bounds to show both markers
-            m.fit_bounds([[user_lat, user_lng], [provider_lat, provider_lng]])
-
-            # Display map
-            center_column = st.columns([1, 8, 1])[1]
-            with center_column:
-                st_folium(m, width=None, height=500, returned_objects=[])
+            st_folium(m, width=700, height=500)
 
             st.markdown("")
 
